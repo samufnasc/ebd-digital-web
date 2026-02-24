@@ -9,6 +9,7 @@ export default function SecretaryDashboard() {
   const { classes, saveReport, getAllReports } = useData();
   const [showCamera, setShowCamera] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [showGeneralReport, setShowGeneralReport] = useState(false);
   const [selectedClass, setSelectedClass] = useState(classes[0]?.id);
   const [ocrData, setOcrData] = useState(null);
   const [formData, setFormData] = useState({
@@ -127,11 +128,21 @@ export default function SecretaryDashboard() {
             {/* Camera Button */}
             <button
               onClick={() => setShowCamera(true)}
-              className="fixed bottom-8 right-8 w-16 h-16 bg-primary text-white rounded-full shadow-lg hover:bg-blue-700 transition flex items-center justify-center text-2xl font-bold z-40"
+              className="fixed right-8 top-1/2 transform -translate-y-1/2 w-16 h-16 bg-primary text-white rounded-full shadow-lg hover:bg-blue-700 transition flex items-center justify-center text-2xl font-bold z-40"
               title="Novo Relatório"
             >
               +
             </button>
+
+            {/* View General Report Button */}
+            <div className="mb-6">
+              <button
+                onClick={() => setShowGeneralReport(true)}
+                className="w-full px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+              >
+                📄 Visualizar Relatório Geral
+              </button>
+            </div>
 
             {/* Recent Reports */}
             <div className="mt-8">
@@ -162,6 +173,68 @@ export default function SecretaryDashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        ) : showGeneralReport ? (
+          /* General Report View */
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">Relatório Geral Consolidado</h2>
+              <button
+                onClick={() => setShowGeneralReport(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Voltar
+              </button>
+            </div>
+
+            {/* Consolidated Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Classe</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Mat</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Aus</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Pres</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Vis</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">%</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Bibl</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Rev</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Oferta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classes.map(cls => {
+                    const classReports = getAllReports().filter(r => r.classId === cls.id);
+                    const classData = {
+                      matriculated: classReports.reduce((sum, r) => sum + r.matriculated, 0),
+                      absent: classReports.reduce((sum, r) => sum + r.absent, 0),
+                      present: classReports.reduce((sum, r) => sum + r.present, 0),
+                      visitor: classReports.reduce((sum, r) => sum + r.visitor, 0),
+                      bibles: classReports.reduce((sum, r) => sum + r.bibles, 0),
+                      magazines: classReports.reduce((sum, r) => sum + r.magazines, 0),
+                      offering: classReports.reduce((sum, r) => sum + r.offering, 0),
+                    };
+                    const classPercentage = classData.matriculated > 0
+                      ? Math.round((classData.present / classData.matriculated) * 100)
+                      : 0;
+                    return (
+                      <tr key={cls.id} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-2 font-medium">{cls.name}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.matriculated}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center text-red-600">{classData.absent}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center text-green-600 font-semibold">{classData.present}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.visitor}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center font-semibold text-primary">{classPercentage}%</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.bibles}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.magazines}</td>
+                        <td className="border border-gray-300 px-4 py-2 text-center font-semibold">{formatCurrency(classData.offering)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         ) : (

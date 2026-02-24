@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 
 export const generatePDF = (consolidatedData, reportsByClass, date) => {
@@ -88,6 +88,17 @@ export const generatePDF = (consolidatedData, reportsByClass, date) => {
     },
   });
 
+  // Adicionar seção de totais
+  const finalY = doc.lastAutoTable?.finalY || 200;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAIS GERAIS', 14, finalY + 15);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Presença Total: ${consolidatedData.present}/${consolidatedData.matriculated} (${Math.round((consolidatedData.present / consolidatedData.matriculated) * 100)}%)`, 14, finalY + 25);
+  doc.text(`Oferta Total: R$ ${consolidatedData.offering.toFixed(2)}`, 14, finalY + 32);
+  
   // Download
   doc.save(`relatorio-ebd-${date}.pdf`);
 };

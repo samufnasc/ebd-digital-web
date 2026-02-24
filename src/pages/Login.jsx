@@ -93,13 +93,9 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Test Credentials */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-          <p className="font-semibold text-gray-900 mb-2">Credenciais de Teste:</p>
-          <div className="space-y-1 text-gray-700">
-            <p><strong>Admin:</strong> admin / admin123</p>
-            <p><strong>Secretário:</strong> secretario / secr123</p>
-          </div>
+        {/* Info */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-center text-gray-700">
+          <p>Entre com suas credenciais para acessar o sistema</p>
         </div>
       </div>
     </div>

@@ -3,11 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../utils/ocr';
 import { generatePDF } from '../utils/pdf';
+import UserManagement from './UserManagement';
 
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
   const { classes, getAllReports } = useData();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showUserManagement, setShowUserManagement] = useState(false);
 
   const reports = getAllReports();
 
@@ -66,12 +68,20 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Painel do Admin</h1>
             <p className="text-gray-600 text-sm">Bem-vindo, {user?.username}</p>
           </div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-          >
-            Sair
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowUserManagement(true)}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              👥 Usuários
+            </button>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+            >
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
@@ -184,6 +194,11 @@ export default function AdminDashboard() {
           </div>
         </div>
       </main>
+
+      {/* User Management Modal */}
+      {showUserManagement && (
+        <UserManagement onClose={() => setShowUserManagement(false)} />
+      )}
     </div>
   );
 }
