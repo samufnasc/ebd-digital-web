@@ -1,104 +1,62 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
-export const generatePDF = (consolidatedData, reportsByClass, date) => {
-  const doc = new jsPDF('p', 'mm', 'a4');
-  
-  // Configurar fonte
-  doc.setFont('helvetica');
-  
-  // Cabeçalho
+export const generatePDF = (data, totals, reportDate) => {
+  const doc = new jsPDF();
+
+  // Cabeçalho do Relatório
   doc.setFontSize(18);
-  doc.text('EBD DIGITAL', 105, 20, { align: 'center' });
+  doc.text('Relatório Geral - Escola Bíblica Dominical', 14, 20);
   
   doc.setFontSize(12);
-  doc.text('Relatório Geral', 105, 28, { align: 'center' });
-  
-  doc.setFontSize(10);
-  doc.text(`Data: ${new Date(date).toLocaleDateString('pt-BR')}`, 105, 35, { align: 'center' });
-  
-  // Tabela de dados
-  const tableData = Object.values(reportsByClass).map(classData => {
-    const percentage = classData.matriculated > 0
-      ? Math.round((classData.present / classData.matriculated) * 100)
-      : 0;
-    
-    return [
-      classData.className,
-      classData.matriculated,
-      classData.absent,
-      classData.present,
-      classData.visitor,
-      `${percentage}%`,
-      classData.bibles,
-      classData.magazines,
-      `R$ ${classData.offering.toFixed(2)}`,
-    ];
-  });
+  doc.text(`Data: ${reportDate}`, 14, 30);
 
-  // Adicionar linha de totais
-  const totalPercentage = consolidatedData.matriculated > 0
-    ? Math.round((consolidatedData.present / consolidatedData.matriculated) * 100)
-    : 0;
-
-  tableData.push([
-    'TOTAL',
-    consolidatedData.matriculated,
-    consolidatedData.absent,
-    consolidatedData.present,
-    consolidatedData.visitor,
-    `${totalPercentage}%`,
-    consolidatedData.bibles,
-    consolidatedData.magazines,
-    `R$ ${consolidatedData.offering.toFixed(2)}`,
+  // Mapeamento dos dados para a tabela
+  // Seguindo a ordem: Classe, Mat, Aus, Pres, Vis, %, Bíbl, Rev, Oferta
+  const tableRows = data.map(item => [
+    item.classe,
+    item.matriculados || 0,
+    item.ausentes || 0,
+    item.presentes || 0,
+    item.visitantes || 0,
+    `${item.porcentagem || 0}%`,
+    item.biblias || 0,
+    item.revistas || 0,
+    `R$ ${item.ofertas?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}`
   ]);
 
-  // Criar tabela
-  doc.autoTable({
+  // Linha de Totais no rodapé da tabela
+  const footerRow = [
+    'TOTAL',
+    totals.matriculados,
+    totals.ausentes,
+    totals.presentes,
+    totals.visitantes,
+    `${totals.porcentagem}%`,
+    totals.biblias,
+    totals.revistas,
+    `R$ ${totals.ofertas?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}`
+  ];
+
+  // Geração da Tabela usando o plugin autoTable de forma explícita
+  autoTable(doc, {
+    startY: 40,
     head: [['Classe', 'Mat', 'Aus', 'Pres', 'Vis', '%', 'Bíbl', 'Rev', 'Oferta']],
-    body: tableData,
-    startY: 45,
+    body: tableRows,
+    foot: [footerRow],
     theme: 'grid',
-    headerStyles: {
-      fillColor: [10, 126, 164],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'center',
-    },
-    bodyStyles: {
-      halign: 'center',
-    },
-    alternateRowStyles: {
-      fillColor: [245, 245, 245],
-    },
-    margin: { top: 45, right: 10, bottom: 10, left: 10 },
-    didDrawPage: (data) => {
-      // Rodapé
-      const pageCount = doc.internal.getPages().length;
-      const pageSize = doc.internal.pageSize;
-      const pageHeight = pageSize.getHeight();
-      
-      doc.setFontSize(9);
-      doc.text(
-        `Página ${data.pageNumber} de ${pageCount}`,
-        pageSize.getWidth() / 2,
-        pageHeight - 10,
-        { align: 'center' }
-      );
-    },
+    headStyles: { fillColor: [0, 123, 167] }, // Cor azul similar ao seu app
+    footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+    styles: { fontSize: 9, halign: 'center' },
+    columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
   });
 
-  // Adicionar seção de totais
-  const finalY = doc.lastAutoTable?.finalY || 200;
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TOTAIS GERAIS', 14, finalY + 15);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Presença Total: ${consolidatedData.present}/${consolidatedData.matriculated} (${Math.round((consolidatedData.present / consolidatedData.matriculated) * 100)}%)`, 14, finalY + 25);
-  doc.text(`Oferta Total: R$ ${consolidatedData.offering.toFixed(2)}`, 14, finalY + 32);
-  
-  // Download
-  doc.save(`relatorio-ebd-${date}.pdf`);
+  // Resumo Final abaixo da tabela (Como no relatório físico)
+  const finalY = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
+  doc.text(`Presença Total: ${totals.presentes}`, 14, finalY);
+  doc.text(`Oferta Total: R$ ${totals.ofertas?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 100, finalY);
+
+  // Salva o arquivo
+  doc.save(`Relatorio_EBD_${reportDate.replace(/\//g, '-')}.pdf`);
 };
