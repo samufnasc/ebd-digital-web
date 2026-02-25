@@ -140,7 +140,7 @@ export default function SecretaryDashboard() {
                 onClick={() => setShowGeneralReport(true)}
                 className="w-full px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
               >
-                📄 Visualizar Relatório Geral
+                📄 Visualizar Relatório Geral (Apenas Consulta)
               </button>
             </div>
 

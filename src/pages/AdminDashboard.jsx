@@ -10,6 +10,7 @@ export default function AdminDashboard() {
   const { classes, getAllReports } = useData();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showPDFOptions, setShowPDFOptions] = useState(false);
 
   const reports = getAllReports();
 
@@ -55,8 +56,9 @@ export default function AdminDashboard() {
     ? Math.round((consolidatedData.present / consolidatedData.matriculated) * 100)
     : 0;
 
-  const handleExportPDF = () => {
-    generatePDF(consolidatedData, reportsByClass, selectedDate);
+  const handleExportPDF = (type = 'general') => {
+    generatePDF(consolidatedData, reportsByClass, selectedDate, type);
+    setShowPDFOptions(false);
   };
 
   return (
@@ -122,9 +124,9 @@ export default function AdminDashboard() {
         {/* Main Report */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold">Relatório Geral</h2>
+            <h2 className="text-xl font-bold">Relatorio Geral</h2>
             <button
-              onClick={handleExportPDF}
+              onClick={() => setShowPDFOptions(true)}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
             >
               📄 Exportar PDF
@@ -198,6 +200,35 @@ export default function AdminDashboard() {
       {/* User Management Modal */}
       {showUserManagement && (
         <UserManagement onClose={() => setShowUserManagement(false)} />
+      )}
+
+      {/* PDF Options Modal */}
+      {showPDFOptions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6">Selecione o Tipo de Relatorio</h2>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleExportPDF('general')}
+                className="w-full px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-left"
+              >
+                📊 Relatorio Geral (Consolidado)
+              </button>
+              <button
+                onClick={() => handleExportPDF('byClass')}
+                className="w-full px-4 py-3 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold text-left"
+              >
+                📑 Relatorios por Classe (Paginas Individuais)
+              </button>
+              <button
+                onClick={() => setShowPDFOptions(false)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
