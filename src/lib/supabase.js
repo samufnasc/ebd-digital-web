@@ -6,6 +6,108 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Funcoes para relatorios
+// Funcoes para alunos
+export const studentFunctions = {
+  // Obter alunos por classe
+  async getStudentsByClass(className) {
+    try {
+      const { data, error } = await supabase
+        .from('alunos')
+        .select('*')
+        .eq('classe', className)
+        .order('nome', { ascending: true });
+      
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Erro ao buscar alunos:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+  },
+
+  // Contar alunos por classe
+  async countStudentsByClass(className) {
+    try {
+      const { data, error, count } = await supabase
+        .from('alunos')
+        .select('*', { count: 'exact', head: true })
+        .eq('classe', className);
+      
+      if (error) throw error;
+      return { success: true, count: count || 0 };
+    } catch (error) {
+      console.error('Erro ao contar alunos:', error);
+      return { success: false, error: error.message, count: 0 };
+    }
+  },
+
+  // Obter todos os alunos
+  async getAllStudents() {
+    try {
+      const { data, error } = await supabase
+        .from('alunos')
+        .select('*')
+        .order('classe', { ascending: true })
+        .order('nome', { ascending: true });
+      
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Erro ao buscar todos os alunos:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+  },
+
+  // Adicionar aluno
+  async addStudent(nome, classe) {
+    try {
+      const { data, error } = await supabase
+        .from('alunos')
+        .insert([{ nome, classe }])
+        .select();
+      
+      if (error) throw error;
+      return { success: true, data: data?.[0] };
+    } catch (error) {
+      console.error('Erro ao adicionar aluno:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Atualizar aluno
+  async updateStudent(id, nome, classe) {
+    try {
+      const { data, error } = await supabase
+        .from('alunos')
+        .update({ nome, classe })
+        .eq('id', id)
+        .select();
+      
+      if (error) throw error;
+      return { success: true, data: data?.[0] };
+    } catch (error) {
+      console.error('Erro ao atualizar aluno:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Deletar aluno
+  async deleteStudent(id) {
+    try {
+      const { error } = await supabase
+        .from('alunos')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao deletar aluno:', error);
+      return { success: false, error: error.message };
+    }
+  },
+};
+
 export const reportFunctions = {
   // Salvar relatorio
   async saveReport(data) {

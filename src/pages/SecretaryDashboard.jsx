@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import CameraCapture from '../components/CameraCapture';
 import { processOCR, calculatePercentage, formatCurrency } from '../utils/ocr';
+import { studentFunctions } from '../lib/supabase';
 
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
@@ -10,8 +11,11 @@ export default function SecretaryDashboard() {
   const [showCamera, setShowCamera] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showGeneralReport, setShowGeneralReport] = useState(false);
+  const [showStudentList, setShowStudentList] = useState(false);
   const [selectedClass, setSelectedClass] = useState(classes[0]?.id);
   const [ocrData, setOcrData] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   const [formData, setFormData] = useState({
     matriculated: 0,
     absent: 0,
@@ -21,6 +25,49 @@ export default function SecretaryDashboard() {
     magazines: 0,
     offering: 0,
   });
+
+  // Carregar alunos quando classe mudar
+  useEffect(() => {
+    loadStudentsForClass();
+  }, [selectedClass]);
+
+  const loadStudentsForClass = async () => {
+    if (!selectedClass) return;
+    
+    setLoadingStudents(true);
+    try {
+      const selectedClassName = classes.find(c => c.id === selectedClass)?.name;
+      if (selectedClassName) {
+        const result = await studentFunctions.getStudentsByClass(selectedClassName);
+        if (result.success) {
+          setStudents(result.data);
+          // Atualizar matriculados automaticamente com valor oficial do banco
+          const matriculatedCount = result.data.length;
+          setFormData(prev => ({
+            ...prev,
+            matriculated: matriculatedCount
+          }));
+          console.log(`Carregados ${matriculatedCount} alunos da classe ${selectedClassName}`);
+        } else {
+          console.error('Erro ao carregar alunos:', result.error);
+          setStudents([]);
+          setFormData(prev => ({
+            ...prev,
+            matriculated: 0
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar alunos:', err);
+      setStudents([]);
+      setFormData(prev => ({
+        ...prev,
+        matriculated: 0
+      }));
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
 
   const handleCameraCapture = async (imageData) => {
     setShowCamera(false);
@@ -35,6 +82,9 @@ export default function SecretaryDashboard() {
   };
 
   const handleFormChange = (field, value) => {
+    // Impedir edição do campo matriculated
+    if (field === 'matriculated') return;
+    
     const numValue = parseFloat(value) || 0;
     setFormData(prev => ({
       ...prev,
@@ -42,18 +92,29 @@ export default function SecretaryDashboard() {
     }));
   };
 
-  const handleSaveReport = () => {
+  const handleSaveReport = async () => {
     if (!selectedClass) {
       alert('Selecione uma classe');
       return;
     }
 
-    saveReport(selectedClass, formData);
+    // Garantir que o valor de matriculados seja sempre o oficial do banco
+    const selectedClassName = classes.find(c => c.id === selectedClass)?.name;
+    const result = await studentFunctions.getStudentsByClass(selectedClassName);
+    const officialMatriculatedCount = result.success ? result.data.length : formData.matriculated;
+
+    // Salvar com o valor oficial
+    const reportData = {
+      ...formData,
+      matriculated: officialMatriculatedCount
+    };
+
+    saveReport(selectedClass, reportData);
     alert('Relatório salvo com sucesso!');
     
     // Resetar formulário
     setFormData({
-      matriculated: 0,
+      matriculated: officialMatriculatedCount,
       absent: 0,
       present: 0,
       visitor: 0,
@@ -134,13 +195,19 @@ export default function SecretaryDashboard() {
               +
             </button>
 
-            {/* View General Report Button */}
-            <div className="mb-6">
+            {/* Buttons */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+              <button
+                onClick={() => setShowStudentList(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+              >
+                👨‍🎓 Alunos da Classe
+              </button>
               <button
                 onClick={() => setShowGeneralReport(true)}
-                className="w-full px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+                className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
               >
-                📄 Visualizar Relatório Geral (Apenas Consulta)
+                📄 Relatório Geral
               </button>
             </div>
 
@@ -244,12 +311,12 @@ export default function SecretaryDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Matriculados</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Matriculados (Automático)</label>
                 <input
                   type="number"
                   value={formData.matriculated}
-                  onChange={(e) => handleFormChange('matriculated', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 font-semibold"
                 />
               </div>
               <div>
@@ -325,12 +392,13 @@ export default function SecretaryDashboard() {
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleSaveReport}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
-              >
-                ✓ Salvar Relatório
-              </button>
+            <button
+              onClick={handleSaveReport}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold disabled:opacity-50"
+              disabled={loadingStudents}
+            >
+              {loadingStudents ? 'Salvando...' : '✓ Salvar Relatório'}
+            </button>
             </div>
           </div>
         )}
@@ -342,6 +410,38 @@ export default function SecretaryDashboard() {
           onCapture={handleCameraCapture}
           onClose={() => setShowCamera(false)}
         />
+      )}
+
+      {/* Student List Modal */}
+      {showStudentList && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Alunos da Classe</h2>
+              <button
+                onClick={() => setShowStudentList(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingStudents ? (
+              <div className="text-center py-8 text-gray-500">Carregando...</div>
+            ) : students.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">Nenhum aluno nesta classe</div>
+            ) : (
+              <div className="space-y-2">
+                {students.map((student, index) => (
+                  <div key={student.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-500 font-medium mr-3">{index + 1}.</span>
+                    <span className="font-medium text-gray-900">{student.nome}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -4,12 +4,14 @@ import { useData } from '../context/DataContext';
 import { formatCurrency } from '../utils/ocr';
 import { generatePDF } from '../utils/pdf';
 import UserManagement from './UserManagement';
+import StudentManagement from './StudentManagement';
 
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
   const { classes, getAllReports } = useData();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
 
   const reports = getAllReports();
@@ -71,6 +73,12 @@ export default function AdminDashboard() {
             <p className="text-gray-600 text-sm">Bem-vindo, {user?.username}</p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => setShowStudentManagement(true)}
+              className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition"
+            >
+              👨‍🎓 Alunos
+            </button>
             <button
               onClick={() => setShowUserManagement(true)}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
@@ -196,6 +204,11 @@ export default function AdminDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Student Management Modal */}
+      {showStudentManagement && (
+        <StudentManagement onClose={() => setShowStudentManagement(false)} />
+      )}
 
       {/* User Management Modal */}
       {showUserManagement && (
