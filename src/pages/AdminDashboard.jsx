@@ -21,21 +21,29 @@ export default function AdminDashboard() {
     const loadTotalStudents = async () => {
       try {
         const result = await studentFunctions.getAllStudents();
-        if (result.success) {
+        if (result.success && Array.isArray(result.data)) {
           setTotalStudents(result.data.length);
+        } else {
+          setTotalStudents(0);
         }
       } catch (error) {
         console.error('Erro ao carregar total de alunos:', error);
+        setTotalStudents(0);
       }
     };
     loadTotalStudents();
   }, []);
 
+  // Recarregar relatórios quando a data muda
+  useEffect(() => {
+    loadReports(selectedDate);
+  }, [selectedDate, loadReports]);
+
   const reports = getAllReports();
 
-  // Consolidar dados
+  // Consolidar dados apenas da data selecionada
   const consolidatedData = {
-    matriculated: 0,
+    matriculated: totalStudents,
     absent: 0,
     present: 0,
     visitor: 0,
@@ -46,38 +54,47 @@ export default function AdminDashboard() {
 
   const reportsByClass = {};
   classes.forEach(cls => {
-    reportsByClass[cls.id] = { ...consolidatedData, className: cls.name };
+    reportsByClass[cls.id] = {
+      matriculated: 0,
+      absent: 0,
+      present: 0,
+      visitor: 0,
+      bibles: 0,
+      magazines: 0,
+      offering: 0,
+      className: cls.name,
+    };
   });
 
-  reports.forEach(report => {
-    if (report.date === selectedDate) {
-      consolidatedData.matriculated += report.matriculated;
-      consolidatedData.absent += report.absent;
-      consolidatedData.present += report.present;
-      consolidatedData.visitor += report.visitor;
-      consolidatedData.bibles += report.bibles;
-      consolidatedData.magazines += report.magazines;
-      consolidatedData.offering += report.offering;
+  // Filtrar relatórios da data selecionada
+  const reportsForDate = reports.filter(r => r.date === selectedDate);
+  
+  reportsForDate.forEach(report => {
+    consolidatedData.absent += Number(report.absent);
+    consolidatedData.present += Number(report.present);
+    consolidatedData.visitor += Number(report.visitor);
+    consolidatedData.bibles += Number(report.bibles);
+    consolidatedData.magazines += Number(report.magazines);
+    consolidatedData.offering += Number(report.offering);
 
-      if (reportsByClass[report.classId]) {
-        reportsByClass[report.classId].matriculated += report.matriculated;
-        reportsByClass[report.classId].absent += report.absent;
-        reportsByClass[report.classId].present += report.present;
-        reportsByClass[report.classId].visitor += report.visitor;
-        reportsByClass[report.classId].bibles += report.bibles;
-        reportsByClass[report.classId].magazines += report.magazines;
-        reportsByClass[report.classId].offering += report.offering;
-      }
+    if (reportsByClass[report.classId]) {
+      reportsByClass[report.classId].matriculated += Number(report.matriculated);
+      reportsByClass[report.classId].absent += Number(report.absent);
+      reportsByClass[report.classId].present += Number(report.present);
+      reportsByClass[report.classId].visitor += Number(report.visitor);
+      reportsByClass[report.classId].bibles += Number(report.bibles);
+      reportsByClass[report.classId].magazines += Number(report.magazines);
+      reportsByClass[report.classId].offering += Number(report.offering);
     }
   });
 
-  // Usar total de alunos do banco em vez de matriculados do relatorio
+  // Usar total de alunos do banco em vez de matriculados do relatório
   const percentage = totalStudents > 0
     ? Math.round((consolidatedData.present / totalStudents) * 100)
     : 0;
   
-  // Total de assistencia = Presentes + Visitantes
-  const totalAssistance = consolidatedData.present + consolidatedData.visitor;
+  // Total de assistência = Presentes + Visitantes
+  const totalAssistance = Number(consolidatedData.present) + Number(consolidatedData.visitor);
 
   const handleExportPDF = (type = 'general') => {
     generatePDF(consolidatedData, reportsByClass, selectedDate, type);
@@ -85,13 +102,13 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteReports = async () => {
-    if (window.confirm(`Tem certeza que deseja deletar todos os relatorios de ${selectedDate}?`)) {
+    if (window.confirm(`Tem certeza que deseja deletar todos os relatórios de ${selectedDate}?`)) {
       const result = await deleteReportsByDate(selectedDate);
       if (result.success) {
-        alert('Relatorios deletados com sucesso!');
+        alert('Relatórios deletados com sucesso!');
         await loadReports();
       } else {
-        alert('Erro ao deletar relatorios: ' + result.error);
+        alert('Erro ao deletar relatórios: ' + result.error);
       }
     }
   };
@@ -169,7 +186,7 @@ export default function AdminDashboard() {
         {/* Main Report */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold">Relatorio Geral</h2>
+            <h2 className="text-xl font-bold">Relatório Geral</h2>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowPDFOptions(true)}
@@ -181,7 +198,7 @@ export default function AdminDashboard() {
                 onClick={handleDeleteReports}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
               >
-                🗑️ Deletar Relatorios
+                🗑️ Deletar Relatórios
               </button>
             </div>
           </div>
@@ -264,19 +281,19 @@ export default function AdminDashboard() {
       {showPDFOptions && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-6">Selecione o Tipo de Relatorio</h2>
+            <h2 className="text-2xl font-bold mb-6">Selecione o Tipo de Relatório</h2>
             <div className="space-y-3">
               <button
                 onClick={() => handleExportPDF('general')}
                 className="w-full px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-left"
               >
-                📊 Relatorio Geral (Consolidado)
+                📊 Relatório Geral (Consolidado)
               </button>
               <button
                 onClick={() => handleExportPDF('byClass')}
                 className="w-full px-4 py-3 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold text-left"
               >
-                📑 Relatorios por Classe (Paginas Individuais)
+                📑 Relatórios por Classe (Páginas Individuais)
               </button>
               <button
                 onClick={() => setShowPDFOptions(false)}
