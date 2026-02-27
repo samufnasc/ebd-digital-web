@@ -5,8 +5,145 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Funcoes para relatorios
-// Funcoes para alunos
+// ============ AUTENTICAÇÃO ============
+export const authFunctions = {
+  login: async (username, password) => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password)
+        .single();
+
+      if (error) {
+        return { success: false, message: 'Usuário ou senha inválido' };
+      }
+
+      return {
+        success: true,
+        data: {
+          username: data.username,
+          role: data.role,
+        },
+      };
+    } catch (error) {
+      console.error('Erro ao fazer login:', error);
+      return { success: false, message: 'Erro ao fazer login' };
+    }
+  },
+
+  getAllUsers: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('username, role');
+
+      if (error) throw error;
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error);
+      return { success: false, data: [] };
+    }
+  },
+
+  addUser: async (username, password, role) => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .insert([{ username, password, role }])
+        .select();
+
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          return { success: false, message: 'Usuário já existe' };
+        }
+        throw error;
+      }
+
+      return { success: true, message: 'Usuário criado com sucesso' };
+    } catch (error) {
+      console.error('Erro ao criar usuário:', error);
+      return { success: false, message: 'Erro ao criar usuário' };
+    }
+  },
+
+  deleteUser: async (username) => {
+    try {
+      const { error } = await supabase
+        .from('usuarios')
+        .delete()
+        .eq('username', username);
+
+      if (error) throw error;
+
+      return { success: true, message: 'Usuário deletado com sucesso' };
+    } catch (error) {
+      console.error('Erro ao deletar usuário:', error);
+      return { success: false, message: 'Erro ao deletar usuário' };
+    }
+  },
+};
+
+// ============ RELATÓRIOS ============
+export const reportFunctions = {
+  saveReport: async (data) => {
+    try {
+      const { data: result, error } = await supabase
+        .from('relatorios_ebd')
+        .insert([{
+          data_aula: data.date,
+          classe: data.className,
+          matriculados: Number(data.matriculated),
+          ausentes: Number(data.absent),
+          presentes: Number(data.present),
+          visitantes: Number(data.visitor),
+          biblias: Number(data.bibles),
+          revistas: Number(data.magazines),
+          ofertas: Number(data.offering),
+        }]);
+      
+      if (error) throw error;
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Erro ao salvar relatório:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  getReportsByDate: async (date) => {
+    try {
+      const { data, error } = await supabase
+        .from('relatorios_ebd')
+        .select('*')
+        .eq('data_aula', date);
+      
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Erro ao buscar relatórios:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+  },
+
+  deleteReportsByDate: async (date) => {
+    try {
+      const { error } = await supabase
+        .from('relatorios_ebd')
+        .delete()
+        .eq('data_aula', date);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao deletar relatórios:', error);
+      return { success: false, error: error.message };
+    }
+  },
+};
+
+// ============ ALUNOS ============
 export const studentFunctions = {
   // Obter alunos por classe
   async getStudentsByClass(className) {
@@ -108,117 +245,4 @@ export const studentFunctions = {
   },
 };
 
-export const reportFunctions = {
-  // Salvar relatorio
-  async saveReport(data) {
-    try {
-      const { data: result, error } = await supabase
-        .from('relatorios_ebd')
-        .insert([{
-          data_aula: data.date,
-          classe: data.className,
-          matriculados: data.matriculated,
-          ausentes: data.absent,
-          presentes: data.present,
-          visitantes: data.visitor,
-          biblias: data.bibles,
-          revistas: data.magazines,
-          ofertas: data.offering,
-        }]);
-      
-      if (error) throw error;
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('Erro ao salvar relatorio:', error);
-      return { success: false, error: error.message };
-    }
-  },
 
-  // Buscar relatorios por data
-  async getReportsByDate(date) {
-    try {
-      const { data, error } = await supabase
-        .from('relatorios_ebd')
-        .select('*')
-        .eq('data_aula', date);
-      
-      if (error) throw error;
-      return { success: true, data: data || [] };
-    } catch (error) {
-      console.error('Erro ao buscar relatorios:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-  },
-
-  // Buscar todos os relatorios
-  async getAllReports() {
-    try {
-      const { data, error } = await supabase
-        .from('relatorios_ebd')
-        .select('*')
-        .order('data_aula', { ascending: false });
-      
-      if (error) throw error;
-      return { success: true, data: data || [] };
-    } catch (error) {
-      console.error('Erro ao buscar todos os relatorios:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-  },
-
-  // Atualizar relatorio
-  async updateReport(id, data) {
-    try {
-      const { data: result, error } = await supabase
-        .from('relatorios_ebd')
-        .update({
-          matriculados: data.matriculated,
-          ausentes: data.absent,
-          presentes: data.present,
-          visitantes: data.visitor,
-          biblias: data.bibles,
-          revistas: data.magazines,
-          ofertas: data.offering,
-        })
-        .eq('id', id);
-      
-      if (error) throw error;
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('Erro ao atualizar relatorio:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Deletar relatorio
-  async deleteReport(id) {
-    try {
-      const { error } = await supabase
-        .from('relatorios_ebd')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-      return { success: true };
-    } catch (error) {
-      console.error('Erro ao deletar relatorio:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Deletar todos os relatorios de uma data
-  async deleteReportsByDate(date) {
-    try {
-      const { error } = await supabase
-        .from('relatorios_ebd')
-        .delete()
-        .eq('data_aula', date);
-      
-      if (error) throw error;
-      return { success: true };
-    } catch (error) {
-      console.error('Erro ao deletar relatorios da data:', error);
-      return { success: false, error: error.message };
-    }
-  },
-};
