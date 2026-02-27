@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { reportFunctions } from '../lib/supabase';
 
 const DataContext = createContext();
@@ -18,8 +18,8 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Carregar relatórios do Supabase
-  const loadReports = async (date = null) => {
+  // Carregar relatórios do Supabase - memoizado para evitar loops infinitos
+  const loadReports = useCallback(async (date = null) => {
     setLoading(true);
     setError(null);
     try {
@@ -30,7 +30,7 @@ export const DataProvider = ({ children }) => {
         result = await reportFunctions.getAllReports();
       }
 
-      if (result.success && result.data) {
+      if (result.success && result.data && Array.isArray(result.data)) {
         // Converter dados do Supabase para formato local
         const formattedReports = result.data.map(report => ({
           id: report.id,
@@ -58,7 +58,7 @@ export const DataProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [classes]);
 
   // Salvar relatório no Supabase
   const saveReport = async (classId, formData) => {
@@ -82,7 +82,7 @@ export const DataProvider = ({ children }) => {
       });
 
       if (result.success) {
-        // Recarregar relatórios da data
+        // Recarregar relatórios da data imediatamente após sucesso
         await loadReports(today);
         return { success: true };
       } else {
@@ -117,7 +117,7 @@ export const DataProvider = ({ children }) => {
       const result = await reportFunctions.deleteReportsByDate(date);
       
       if (result.success) {
-        // Recarregar relatórios
+        // Recarregar relatórios após deletar
         await loadReports();
         return { success: true };
       } else {
@@ -133,10 +133,10 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  // Carregar relatórios ao montar
+  // Carregar relatórios ao montar o componente
   useEffect(() => {
     loadReports();
-  }, []);
+  }, [loadReports]);
 
   const value = {
     reports,

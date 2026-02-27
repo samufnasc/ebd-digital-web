@@ -16,12 +16,13 @@ export default function AdminDashboard() {
   const [showPDFOptions, setShowPDFOptions] = useState(false);
   const [totalStudents, setTotalStudents] = useState(0);
 
-  // Carregar total de alunos do banco
+  // Carregar total de alunos do banco - apenas o data.length real
   useEffect(() => {
     const loadTotalStudents = async () => {
       try {
         const result = await studentFunctions.getAllStudents();
         if (result.success && Array.isArray(result.data)) {
+          // Usar apenas o comprimento real do array, sem somas ou mocks
           setTotalStudents(result.data.length);
         } else {
           setTotalStudents(0);
@@ -78,7 +79,7 @@ export default function AdminDashboard() {
     consolidatedData.offering += Number(report.offering);
 
     if (reportsByClass[report.classId]) {
-      reportsByClass[report.classId].matriculated += Number(report.matriculated);
+      reportsByClass[report.classId].matriculated = Number(report.matriculated);
       reportsByClass[report.classId].absent += Number(report.absent);
       reportsByClass[report.classId].present += Number(report.present);
       reportsByClass[report.classId].visitor += Number(report.visitor);
