@@ -121,11 +121,38 @@ export const DataProvider = ({ children }) => {
     return reports;
   };
 
-  // Deletar relatorio
+  // Deletar relatorio por ID
   const deleteReport = (id) => {
     const updated = reports.filter(r => r.id !== id);
     setReports(updated);
     localStorage.setItem('reports', JSON.stringify(updated));
+  };
+
+  // Deletar todos os relatorios de uma data
+  const deleteReportsByDate = async (date) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Deletar do Supabase
+      const result = await reportFunctions.deleteReportsByDate(date);
+      
+      if (result.success) {
+        // Recarregar relatorios
+        await loadReports();
+        return { success: true };
+      } else {
+        // Fallback para localStorage
+        const updated = reports.filter(r => r.date !== date);
+        setReports(updated);
+        localStorage.setItem('reports', JSON.stringify(updated));
+        return { success: true };
+      }
+    } catch (err) {
+      setError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Carregar relatorios ao montar
@@ -144,6 +171,7 @@ export const DataProvider = ({ children }) => {
         getReportsByDate,
         getAllReports,
         deleteReport,
+        deleteReportsByDate,
         loadReports,
       }}
     >

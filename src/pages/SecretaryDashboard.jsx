@@ -76,14 +76,22 @@ export default function SecretaryDashboard() {
     const result = await processOCR(imageData);
     if (result.success) {
       setOcrData(result.data);
-      setFormData(result.data);
+      // IMPORTANTE: Nunca sobrescrever o campo matriculated com dados da camera
+      // Sempre usar o valor oficial do banco de dados
+      setFormData(prev => ({
+        ...result.data,
+        matriculated: prev.matriculated
+      }));
       setShowReview(true);
     }
   };
 
   const handleFormChange = (field, value) => {
-    // Impedir edição do campo matriculated
-    if (field === 'matriculated') return;
+    // BLOQUEADO: Campo matriculated eh READ-ONLY e vem do banco de dados
+    if (field === 'matriculated') {
+      console.warn('Campo Matriculados eh bloqueado. Use o valor do banco de dados.');
+      return;
+    }
     
     const numValue = parseFloat(value) || 0;
     setFormData(prev => ({

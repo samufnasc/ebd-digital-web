@@ -8,7 +8,7 @@ import StudentManagement from './StudentManagement';
 
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
-  const { classes, getAllReports } = useData();
+  const { classes, getAllReports, deleteReportsByDate, loadReports } = useData();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showStudentManagement, setShowStudentManagement] = useState(false);
@@ -61,6 +61,18 @@ export default function AdminDashboard() {
   const handleExportPDF = (type = 'general') => {
     generatePDF(consolidatedData, reportsByClass, selectedDate, type);
     setShowPDFOptions(false);
+  };
+
+  const handleDeleteReports = async () => {
+    if (window.confirm(`Tem certeza que deseja deletar todos os relatorios de ${selectedDate}?`)) {
+      const result = await deleteReportsByDate(selectedDate);
+      if (result.success) {
+        alert('Relatorios deletados com sucesso!');
+        await loadReports();
+      } else {
+        alert('Erro ao deletar relatorios: ' + result.error);
+      }
+    }
   };
 
   return (
@@ -133,12 +145,20 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold">Relatorio Geral</h2>
-            <button
-              onClick={() => setShowPDFOptions(true)}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
-            >
-              📄 Exportar PDF
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowPDFOptions(true)}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+              >
+                📄 Exportar PDF
+              </button>
+              <button
+                onClick={handleDeleteReports}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
+              >
+                🗑️ Deletar Relatorios
+              </button>
+            </div>
           </div>
 
           {/* Summary Table */}

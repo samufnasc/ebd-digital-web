@@ -205,4 +205,20 @@ export const reportFunctions = {
       return { success: false, error: error.message };
     }
   },
+
+  // Deletar todos os relatorios de uma data
+  async deleteReportsByDate(date) {
+    try {
+      const { error } = await supabase
+        .from('relatorios_ebd')
+        .delete()
+        .eq('data_aula', date);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao deletar relatorios da data:', error);
+      return { success: false, error: error.message };
+    }
+  },
 };
