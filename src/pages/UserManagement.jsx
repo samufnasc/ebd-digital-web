@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { useUserManagement } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function UserManagement({ onClose }) {
-  const { addUser, deleteUser, getAllUsers } = useUserManagement();
-  const [users, setUsers] = useState(getAllUsers());
+  const { addUser, deleteUser, users: allUsers } = useAuth();
+  const [users, setUsers] = useState(Object.keys(allUsers).map(username => ({
+    username,
+    role: allUsers[username].role
+  })));
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -12,7 +15,7 @@ export default function UserManagement({ onClose }) {
   });
   const [message, setMessage] = useState('');
 
-  const handleAddUser = (e) => {
+  const handleAddUser = async (e) => {
     e.preventDefault();
     
     if (!formData.username || !formData.password) {
@@ -20,11 +23,11 @@ export default function UserManagement({ onClose }) {
       return;
     }
 
-    const result = addUser(formData.username, formData.password, formData.role);
+    const result = await addUser(formData.username, formData.password, formData.role);
     
     if (result.success) {
       setMessage(result.message);
-      setUsers(getAllUsers());
+      // Atualizar lista de usuarios
       setFormData({ username: '', password: '', role: 'secretary' });
       setShowForm(false);
       setTimeout(() => setMessage(''), 3000);
@@ -33,12 +36,12 @@ export default function UserManagement({ onClose }) {
     }
   };
 
-  const handleDeleteUser = (username) => {
+  const handleDeleteUser = async (username) => {
     if (window.confirm(`Tem certeza que deseja deletar ${username}?`)) {
-      const result = deleteUser(username);
+      const result = await deleteUser(username);
       if (result.success) {
         setMessage(result.message);
-        setUsers(getAllUsers());
+        // Atualizar lista de usuarios
         setTimeout(() => setMessage(''), 3000);
       }
     }

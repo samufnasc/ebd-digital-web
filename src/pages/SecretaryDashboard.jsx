@@ -129,12 +129,14 @@ export default function SecretaryDashboard() {
       bibles: 0,
       magazines: 0,
       offering: 0,
+      totalAssistance: 0,
     });
     setShowReview(false);
     setOcrData(null);
   };
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
+  const totalAssistance = formData.present + formData.visitor;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -390,6 +392,16 @@ export default function SecretaryDashboard() {
                   disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 font-semibold"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total de Assistência</label>
+                <input
+                  type="text"
+                  value={totalAssistance}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-blue-50 text-blue-700 font-semibold"
+                />
+                <p className="text-xs text-gray-600 mt-1">Presentes + Visitantes</p>
               </div>
             </div>
 

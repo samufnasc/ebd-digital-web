@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext();
 
@@ -11,24 +12,58 @@ const DEFAULT_USERS = {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('users');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS;
-  });
+  const [users, setUsers] = useState(DEFAULT_USERS);
 
+  // Carregar usuarios do Supabase ao iniciar
   useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        // Tentar carregar usuarios do Supabase
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('*');
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          // Converter dados do Supabase para formato local
+          const usersMap = {};
+          data.forEach(user => {
+            usersMap[user.username] = {
+              password: user.password,
+              role: user.role
+            };
+          });
+          setUsers(usersMap);
+        } else {
+          // Se tabela vazia, salvar usuarios padrao
+          for (const [username, userData] of Object.entries(DEFAULT_USERS)) {
+            await supabase.from('usuarios').insert([{
+              username,
+              password: userData.password,
+              role: userData.role
+            }]);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar usuarios do Supabase:', error);
+        // Fallback para localStorage
+        const saved = localStorage.getItem('users');
+        if (saved) {
+          setUsers(JSON.parse(saved));
+        }
+      }
+    };
+
     // Restaurar usuario do localStorage
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
+
+    loadUsers();
     setLoading(false);
   }, []);
-
-  useEffect(() => {
-    // Salvar usuarios no localStorage
-    localStorage.setItem('users', JSON.stringify(users));
-  }, [users]);
 
   const login = (username, password) => {
     if (users[username] && users[username].password === password) {
@@ -48,45 +83,117 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
-  const addUser = (username, password, role) => {
+  const addUser = async (username, password, role) => {
     if (users[username]) {
       return { success: false, message: 'Usuario ja existe' };
     }
-    setUsers(prev => ({
-      ...prev,
-      [username]: { password, role }
-    }));
-    return { success: true, message: 'Usuario criado com sucesso' };
+
+    try {
+      // Salvar no Supabase
+      const { error } = await supabase
+        .from('usuarios')
+        .insert([{
+          username,
+          password,
+          role
+        }]);
+
+      if (error) throw error;
+
+      // Atualizar estado local
+      setUsers(prev => ({
+        ...prev,
+        [username]: { password, role }
+      }));
+
+      // Salvar no localStorage como fallback
+      localStorage.setItem('users', JSON.stringify({
+        ...users,
+        [username]: { password, role }
+      }));
+
+      return { success: true, message: 'Usuario criado com sucesso' };
+    } catch (error) {
+      console.error('Erro ao criar usuario:', error);
+      return { success: false, message: 'Erro ao criar usuario: ' + error.message };
+    }
   };
 
-  const updateUser = (username, newPassword) => {
+  const updateUser = async (username, newPassword) => {
     if (!users[username]) {
       return { success: false, message: 'Usuario nao encontrado' };
     }
-    setUsers(prev => ({
-      ...prev,
-      [username]: { ...prev[username], password: newPassword }
-    }));
-    return { success: true, message: 'Senha atualizada com sucesso' };
+
+    try {
+      // Atualizar no Supabase
+      const { error } = await supabase
+        .from('usuarios')
+        .update({ password: newPassword })
+        .eq('username', username);
+
+      if (error) throw error;
+
+      // Atualizar estado local
+      setUsers(prev => ({
+        ...prev,
+        [username]: { ...prev[username], password: newPassword }
+      }));
+
+      // Salvar no localStorage como fallback
+      localStorage.setItem('users', JSON.stringify({
+        ...users,
+        [username]: { ...users[username], password: newPassword }
+      }));
+
+      return { success: true, message: 'Senha atualizada com sucesso' };
+    } catch (error) {
+      console.error('Erro ao atualizar usuario:', error);
+      return { success: false, message: 'Erro ao atualizar usuario: ' + error.message };
+    }
   };
 
-  const deleteUser = (username) => {
+  const deleteUser = async (username) => {
     if (!users[username]) {
       return { success: false, message: 'Usuario nao encontrado' };
     }
-    const newUsers = { ...users };
-    delete newUsers[username];
-    setUsers(newUsers);
-    return { success: true, message: 'Usuario deletado com sucesso' };
-  };
 
-  const getAllUsers = () => Object.entries(users).map(([username, data]) => ({
-    username,
-    role: data.role
-  }));
+    try {
+      // Deletar do Supabase
+      const { error } = await supabase
+        .from('usuarios')
+        .delete()
+        .eq('username', username);
+
+      if (error) throw error;
+
+      // Atualizar estado local
+      const newUsers = { ...users };
+      delete newUsers[username];
+      setUsers(newUsers);
+
+      // Salvar no localStorage como fallback
+      localStorage.setItem('users', JSON.stringify(newUsers));
+
+      return { success: true, message: 'Usuario deletado com sucesso' };
+    } catch (error) {
+      console.error('Erro ao deletar usuario:', error);
+      return { success: false, message: 'Erro ao deletar usuario: ' + error.message };
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, addUser, updateUser, deleteUser, getAllUsers }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        addUser,
+        updateUser,
+        deleteUser,
+        users,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -98,10 +205,4 @@ export const useAuth = () => {
     throw new Error('useAuth deve ser usado dentro de AuthProvider');
   }
   return context;
-};
-
-// Hook para usar apenas funcoes de gestao de usuarios
-export const useUserManagement = () => {
-  const { addUser, updateUser, deleteUser, getAllUsers } = useAuth();
-  return { addUser, updateUser, deleteUser, getAllUsers };
 };

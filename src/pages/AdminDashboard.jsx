@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../utils/ocr';
 import { generatePDF } from '../utils/pdf';
+import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
 
@@ -13,6 +14,22 @@ export default function AdminDashboard() {
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
+  const [totalStudents, setTotalStudents] = useState(0);
+
+  // Carregar total de alunos do banco
+  useEffect(() => {
+    const loadTotalStudents = async () => {
+      try {
+        const result = await studentFunctions.getAllStudents();
+        if (result.success) {
+          setTotalStudents(result.data.length);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar total de alunos:', error);
+      }
+    };
+    loadTotalStudents();
+  }, []);
 
   const reports = getAllReports();
 
@@ -54,9 +71,13 @@ export default function AdminDashboard() {
     }
   });
 
-  const percentage = consolidatedData.matriculated > 0
-    ? Math.round((consolidatedData.present / consolidatedData.matriculated) * 100)
+  // Usar total de alunos do banco em vez de matriculados do relatorio
+  const percentage = totalStudents > 0
+    ? Math.round((consolidatedData.present / totalStudents) * 100)
     : 0;
+  
+  // Total de assistencia = Presentes + Visitantes
+  const totalAssistance = consolidatedData.present + consolidatedData.visitor;
 
   const handleExportPDF = (type = 'general') => {
     generatePDF(consolidatedData, reportsByClass, selectedDate, type);
@@ -122,10 +143,10 @@ export default function AdminDashboard() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-gray-600 text-xs">Matriculados</p>
-            <p className="text-2xl font-bold text-primary">{consolidatedData.matriculated}</p>
+            <p className="text-gray-600 text-xs">Total de Alunos</p>
+            <p className="text-2xl font-bold text-primary">{totalStudents}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-gray-600 text-xs">Presentes</p>
@@ -134,6 +155,10 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-gray-600 text-xs">Ausentes</p>
             <p className="text-2xl font-bold text-red-600">{consolidatedData.absent}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-gray-600 text-xs">Total Assistência</p>
+            <p className="text-2xl font-bold text-blue-600">{totalAssistance}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-gray-600 text-xs">Frequência</p>
