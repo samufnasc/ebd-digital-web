@@ -7,8 +7,6 @@ import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
 
-localStorage.removeItem('eb_records'); // Limpa o cache antigo
-
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
   const { classes, getAllReports, deleteReportsByDate, loadReports } = useData();

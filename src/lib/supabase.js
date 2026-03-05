@@ -188,6 +188,15 @@ export const studentFunctions = {
         .order('nome', { ascending: true });
       
       if (error) throw error;
+      
+      // DEBUG: Log para verificar dados retornados
+      console.log('getAllStudents - Dados retornados do Supabase:', data);
+      console.log('getAllStudents - Total de alunos:', data?.length || 0);
+      console.log('getAllStudents - Alunos por classe:', data?.reduce((acc, student) => {
+        acc[student.classe] = (acc[student.classe] || 0) + 1;
+        return acc;
+      }, {}));
+      
       return { success: true, data: data || [] };
     } catch (error) {
       console.error('Erro ao buscar todos os alunos:', error);
