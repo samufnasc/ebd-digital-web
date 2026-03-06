@@ -7,23 +7,38 @@ import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
 
-// ✅ FUNÇÃO AUXILIAR PARA OBTER DATA ATUAL COM FUSO HORÁRIO CORRETO (Brasília)
-const getTodayBrasilia = () => {
-  const now = new Date();
-  // Formatar data em Brasília (UTC-3)
-  const brazilDate = new Date(now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-  // Retornar no formato YYYY-MM-DD
-  const year = brazilDate.getFullYear();
-  const month = String(brazilDate.getMonth() + 1).padStart(2, '0');
-  const day = String(brazilDate.getDate()).padStart(2, '0');
+// ✅ FUNÇÕES UTILITÁRIAS DE DATA - PADRONIZAÇÃO GLOBAL
+/**
+ * Retorna a data de hoje em Brasília no formato YYYY-MM-DD (para input type="date" e Supabase)
+ */
+const getTodayForDatabase = () => {
+  return new Date().toLocaleDateString('en-CA'); // 'en-CA' retorna YYYY-MM-DD
+};
+
+/**
+ * Converte data YYYY-MM-DD para formato brasileiro DD/MM/YYYY para exibição
+ */
+const formatDateToBrazilian = (dateString) => {
+  if (!dateString) return '';
+  // dateString deve estar em formato YYYY-MM-DD
+  const [year, month, day] = dateString.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+/**
+ * Converte data DD/MM/YYYY para YYYY-MM-DD para banco de dados
+ */
+const formatDateToDatabase = (brazilianDate) => {
+  if (!brazilianDate) return '';
+  const [day, month, year] = brazilianDate.split('/');
   return `${year}-${month}-${day}`;
 };
 
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
   const { classes, getAllReports, deleteReportsByDate, loadReports } = useData();
-  // ✅ CORREÇÃO: Usar data de Brasília em vez de UTC
-  const [selectedDate, setSelectedDate] = useState(getTodayBrasilia());
+  // ✅ CORREÇÃO: Usar getTodayForDatabase() para formato YYYY-MM-DD
+  const [selectedDate, setSelectedDate] = useState(getTodayForDatabase());
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
@@ -36,7 +51,6 @@ export default function AdminDashboard() {
         const result = await studentFunctions.getAllStudents();
         console.log('AdminDashboard - Resultado de getAllStudents:', result);
         if (result.success && Array.isArray(result.data)) {
-          // Usar apenas o comprimento real do array, sem somas ou mocks
           console.log('AdminDashboard - Total de alunos carregado:', result.data.length);
           setTotalStudents(result.data.length);
         } else {
@@ -119,7 +133,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteReports = async () => {
-    if (window.confirm(`Tem certeza que deseja deletar todos os relatórios de ${selectedDate}?`)) {
+    if (window.confirm(`Tem certeza que deseja deletar todos os relatórios de ${formatDateToBrazilian(selectedDate)}?`)) {
       const result = await deleteReportsByDate(selectedDate);
       if (result.success) {
         alert('Relatórios deletados com sucesso!');
@@ -174,6 +188,8 @@ export default function AdminDashboard() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
           />
+          {/* ✅ EXIBIÇÃO: Mostrar data em formato brasileiro */}
+          <p className="text-sm text-gray-600 mt-1">Data selecionada: {formatDateToBrazilian(selectedDate)}</p>
         </div>
 
         {/* Summary Cards */}

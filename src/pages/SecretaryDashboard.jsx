@@ -5,15 +5,30 @@ import CameraCapture from '../components/CameraCapture';
 import { processOCR, calculatePercentage, formatCurrency } from '../utils/ocr';
 import { studentFunctions } from '../lib/supabase';
 
-// ✅ FUNÇÃO AUXILIAR PARA OBTER DATA ATUAL COM FUSO HORÁRIO CORRETO (Brasília)
-const getTodayBrasilia = () => {
-  const now = new Date();
-  // Formatar data em Brasília (UTC-3)
-  const brazilDate = new Date(now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-  // Retornar no formato YYYY-MM-DD
-  const year = brazilDate.getFullYear();
-  const month = String(brazilDate.getMonth() + 1).padStart(2, '0');
-  const day = String(brazilDate.getDate()).padStart(2, '0');
+// ✅ FUNÇÕES UTILITÁRIAS DE DATA - PADRONIZAÇÃO GLOBAL
+/**
+ * Retorna a data de hoje em Brasília no formato YYYY-MM-DD (para input type="date" e Supabase)
+ */
+const getTodayForDatabase = () => {
+  return new Date().toLocaleDateString('en-CA'); // 'en-CA' retorna YYYY-MM-DD
+};
+
+/**
+ * Converte data YYYY-MM-DD para formato brasileiro DD/MM/YYYY para exibição
+ */
+const formatDateToBrazilian = (dateString) => {
+  if (!dateString) return '';
+  // dateString deve estar em formato YYYY-MM-DD
+  const [year, month, day] = dateString.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+/**
+ * Converte data DD/MM/YYYY para YYYY-MM-DD para banco de dados
+ */
+const formatDateToDatabase = (brazilianDate) => {
+  if (!brazilianDate) return '';
+  const [day, month, year] = brazilianDate.split('/');
   return `${year}-${month}-${day}`;
 };
 
@@ -49,7 +64,7 @@ export default function SecretaryDashboard() {
     setLoadingStudents(true);
     try {
       const selectedClassData = classes.find(c => c.id === selectedClass);
-      const selectedClassName = selectedClassData?.name?.trim(); // ✅ NORMALIZAÇÃO: trim()
+      const selectedClassName = selectedClassData?.name?.trim();
       
       console.log('SecretaryDashboard - Carregando alunos para classe ID:', selectedClass);
       console.log('SecretaryDashboard - Nome da classe:', selectedClassName);
@@ -61,7 +76,6 @@ export default function SecretaryDashboard() {
         if (result.success) {
           console.log('SecretaryDashboard - Total de alunos carregado:', result.data.length);
           setStudents(result.data);
-          // Atualizar matriculados automaticamente com valor oficial do banco
           const matriculatedCount = result.data.length;
           setFormData(prev => ({
             ...prev,
@@ -92,12 +106,9 @@ export default function SecretaryDashboard() {
   const handleCameraCapture = async (imageData) => {
     setShowCamera(false);
     
-    // Processar OCR
     const result = await processOCR(imageData);
     if (result.success) {
       setOcrData(result.data);
-      // IMPORTANTE: Nunca sobrescrever o campo matriculated com dados da camera
-      // Sempre usar o valor oficial do banco de dados
       setFormData(prev => ({
         ...result.data,
         matriculated: prev.matriculated
@@ -107,7 +118,6 @@ export default function SecretaryDashboard() {
   };
 
   const handleFormChange = (field, value) => {
-    // BLOQUEADO: Campo matriculated eh READ-ONLY e vem do banco de dados
     if (field === 'matriculated') {
       console.warn('Campo Matriculados eh bloqueado. Use o valor do banco de dados.');
       return;
@@ -126,13 +136,11 @@ export default function SecretaryDashboard() {
       return;
     }
 
-    // Garantir que o valor de matriculados seja sempre o oficial do banco
     const selectedClassData = classes.find(c => c.id === selectedClass);
-    const selectedClassName = selectedClassData?.name?.trim(); // ✅ NORMALIZAÇÃO: trim()
+    const selectedClassName = selectedClassData?.name?.trim();
     const result = await studentFunctions.getStudentsByClass(selectedClassName);
     const officialMatriculatedCount = result.success ? result.data.length : formData.matriculated;
 
-    // Salvar com o valor oficial
     const reportData = {
       ...formData,
       matriculated: officialMatriculatedCount
@@ -141,7 +149,6 @@ export default function SecretaryDashboard() {
     saveReport(selectedClass, reportData);
     alert('Relatório salvo com sucesso!');
     
-    // Resetar formulário
     setFormData({
       matriculated: officialMatriculatedCount,
       absent: 0,
@@ -158,6 +165,8 @@ export default function SecretaryDashboard() {
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
   const totalAssistance = formData.present + formData.visitor;
+  // ✅ CORREÇÃO: Usar getTodayForDatabase() para formato YYYY-MM-DD
+  const todayForDisplay = getTodayForDatabase();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -190,8 +199,8 @@ export default function SecretaryDashboard() {
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <p className="text-gray-600 text-sm">Data</p>
-            {/* ✅ CORREÇÃO: Usar data de Brasília em vez de UTC */}
-            <p className="text-3xl font-bold text-primary">{new Date(getTodayBrasilia()).toLocaleDateString('pt-BR')}</p>
+            {/* ✅ EXIBIÇÃO: Mostrar data em formato brasileiro DD/MM/YYYY */}
+            <p className="text-3xl font-bold text-primary">{formatDateToBrazilian(todayForDisplay)}</p>
           </div>
         </div>
 
@@ -261,7 +270,8 @@ export default function SecretaryDashboard() {
                   <tbody>
                     {getAllReports().slice(-5).reverse().map(report => (
                       <tr key={report.id} className="border-t hover:bg-gray-50">
-                        <td className="px-4 py-2">{new Date(report.date).toLocaleDateString('pt-BR')}</td>
+                        {/* ✅ EXIBIÇÃO: Converter data YYYY-MM-DD para DD/MM/YYYY */}
+                        <td className="px-4 py-2">{formatDateToBrazilian(report.date)}</td>
                         <td className="px-4 py-2">{report.className}</td>
                         <td className="px-4 py-2 text-center">{report.matriculated}</td>
                         <td className="px-4 py-2 text-center">{report.present}</td>
