@@ -3,14 +3,27 @@ import { reportFunctions } from '../lib/supabase';
 
 const DataContext = createContext();
 
+// ✅ NOMES SINCRONIZADOS COM SUPABASE (exatos, com acentos e maiúsculas)
 const INITIAL_CLASSES = [
-  { id: '1', name: 'Adonay' },
-  { id: '2', name: 'Geracao Eleita' },
+  { id: '1', name: 'Adonai' },
+  { id: '2', name: 'Geração Eleita' },
   { id: '3', name: 'Jardim de Deus' },
   { id: '4', name: 'Vencedores do Rei' },
-  { id: '5', name: 'Abraao' },
+  { id: '5', name: 'Abraão' },
   { id: '6', name: 'Crescendo com Cristo' },
 ];
+
+// ✅ FUNÇÃO AUXILIAR PARA OBTER DATA ATUAL COM FUSO HORÁRIO CORRETO (Brasília)
+const getTodayBrasilia = () => {
+  const now = new Date();
+  // Formatar data em Brasília (UTC-3)
+  const brazilDate = new Date(now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+  // Retornar no formato YYYY-MM-DD
+  const year = brazilDate.getFullYear();
+  const month = String(brazilDate.getMonth() + 1).padStart(2, '0');
+  const day = String(brazilDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const DataProvider = ({ children }) => {
   const [reports, setReports] = useState([]);
@@ -32,20 +45,26 @@ export const DataProvider = ({ children }) => {
 
       if (result.success && result.data && Array.isArray(result.data)) {
         // Converter dados do Supabase para formato local
-        const formattedReports = result.data.map(report => ({
-          id: report.id,
-          date: report.data_aula,
-          classId: classes.find(c => c.name === report.classe)?.id || '1',
-          className: report.classe,
-          matriculated: Number(report.matriculados),
-          absent: Number(report.ausentes),
-          present: Number(report.presentes),
-          visitor: Number(report.visitantes),
-          bibles: Number(report.biblias),
-          magazines: Number(report.revistas),
-          offering: Number(report.ofertas),
-          percentage: Number(report.matriculados) > 0 ? Math.round((Number(report.presentes) / Number(report.matriculados)) * 100) : 0,
-        }));
+        const formattedReports = result.data.map(report => {
+          // ✅ NORMALIZAÇÃO: trim() para ignorar espaços acidentais
+          const reportClassName = report.classe?.trim() || '';
+          const classData = classes.find(c => c.name.trim() === reportClassName);
+          
+          return {
+            id: report.id,
+            date: report.data_aula,
+            classId: classData?.id || '1',
+            className: reportClassName,
+            matriculated: Number(report.matriculados),
+            absent: Number(report.ausentes),
+            present: Number(report.presentes),
+            visitor: Number(report.visitantes),
+            bibles: Number(report.biblias),
+            magazines: Number(report.revistas),
+            offering: Number(report.ofertas),
+            percentage: Number(report.matriculados) > 0 ? Math.round((Number(report.presentes) / Number(report.matriculados)) * 100) : 0,
+          };
+        });
         setReports(formattedReports);
       } else {
         setError(result?.error || 'Erro ao carregar relatórios');
@@ -66,7 +85,10 @@ export const DataProvider = ({ children }) => {
     setError(null);
     try {
       const classData = classes.find(c => c.id === classId);
-      const today = new Date().toISOString().split('T')[0];
+      // ✅ CORREÇÃO: Usar data de Brasília (UTC-3) em vez de UTC
+      const today = getTodayBrasilia();
+
+      console.log('DataContext - Salvando relatório com data:', today);
 
       // Salvar no Supabase
       const result = await reportFunctions.saveReport({
@@ -148,6 +170,7 @@ export const DataProvider = ({ children }) => {
     getReportsByDate,
     getAllReports,
     deleteReportsByDate,
+    getTodayBrasilia, // ✅ Exportar função para uso em outros componentes
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

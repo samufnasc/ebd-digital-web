@@ -7,10 +7,23 @@ import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
 
+// ✅ FUNÇÃO AUXILIAR PARA OBTER DATA ATUAL COM FUSO HORÁRIO CORRETO (Brasília)
+const getTodayBrasilia = () => {
+  const now = new Date();
+  // Formatar data em Brasília (UTC-3)
+  const brazilDate = new Date(now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+  // Retornar no formato YYYY-MM-DD
+  const year = brazilDate.getFullYear();
+  const month = String(brazilDate.getMonth() + 1).padStart(2, '0');
+  const day = String(brazilDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
   const { classes, getAllReports, deleteReportsByDate, loadReports } = useData();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  // ✅ CORREÇÃO: Usar data de Brasília em vez de UTC
+  const [selectedDate, setSelectedDate] = useState(getTodayBrasilia());
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);

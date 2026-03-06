@@ -5,6 +5,18 @@ import CameraCapture from '../components/CameraCapture';
 import { processOCR, calculatePercentage, formatCurrency } from '../utils/ocr';
 import { studentFunctions } from '../lib/supabase';
 
+// ✅ FUNÇÃO AUXILIAR PARA OBTER DATA ATUAL COM FUSO HORÁRIO CORRETO (Brasília)
+const getTodayBrasilia = () => {
+  const now = new Date();
+  // Formatar data em Brasília (UTC-3)
+  const brazilDate = new Date(now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+  // Retornar no formato YYYY-MM-DD
+  const year = brazilDate.getFullYear();
+  const month = String(brazilDate.getMonth() + 1).padStart(2, '0');
+  const day = String(brazilDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
   const { classes, saveReport, getAllReports } = useData();
@@ -36,12 +48,16 @@ export default function SecretaryDashboard() {
     
     setLoadingStudents(true);
     try {
-      const selectedClassName = classes.find(c => c.id === selectedClass)?.name;
+      const selectedClassData = classes.find(c => c.id === selectedClass);
+      const selectedClassName = selectedClassData?.name?.trim(); // ✅ NORMALIZAÇÃO: trim()
+      
       console.log('SecretaryDashboard - Carregando alunos para classe ID:', selectedClass);
       console.log('SecretaryDashboard - Nome da classe:', selectedClassName);
+      
       if (selectedClassName) {
         const result = await studentFunctions.getStudentsByClass(selectedClassName);
         console.log('SecretaryDashboard - Resultado de getStudentsByClass:', result);
+        
         if (result.success) {
           console.log('SecretaryDashboard - Total de alunos carregado:', result.data.length);
           setStudents(result.data);
@@ -111,7 +127,8 @@ export default function SecretaryDashboard() {
     }
 
     // Garantir que o valor de matriculados seja sempre o oficial do banco
-    const selectedClassName = classes.find(c => c.id === selectedClass)?.name;
+    const selectedClassData = classes.find(c => c.id === selectedClass);
+    const selectedClassName = selectedClassData?.name?.trim(); // ✅ NORMALIZAÇÃO: trim()
     const result = await studentFunctions.getStudentsByClass(selectedClassName);
     const officialMatriculatedCount = result.success ? result.data.length : formData.matriculated;
 
@@ -173,7 +190,8 @@ export default function SecretaryDashboard() {
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <p className="text-gray-600 text-sm">Data</p>
-            <p className="text-3xl font-bold text-primary">{new Date().toLocaleDateString('pt-BR')}</p>
+            {/* ✅ CORREÇÃO: Usar data de Brasília em vez de UTC */}
+            <p className="text-3xl font-bold text-primary">{new Date(getTodayBrasilia()).toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
 
