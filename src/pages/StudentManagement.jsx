@@ -22,12 +22,17 @@ export default function StudentManagement({ onClose }) {
     setError(null);
     try {
       const result = await studentFunctions.getStudentsByClass(selectedClass);
+      console.log('StudentManagement - Carregando alunos da classe:', selectedClass);
+      console.log('StudentManagement - Resultado:', result);
       if (result.success) {
+        console.log('StudentManagement - Total de alunos carregado:', result.data.length);
         setStudents(result.data);
       } else {
+        console.error('StudentManagement - Erro:', result.error);
         setError(result.error);
       }
     } catch (err) {
+      console.error('StudentManagement - Erro ao carregar:', err);
       setError(err.message);
     } finally {
       setLoading(false);

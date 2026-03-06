@@ -37,9 +37,13 @@ export default function SecretaryDashboard() {
     setLoadingStudents(true);
     try {
       const selectedClassName = classes.find(c => c.id === selectedClass)?.name;
+      console.log('SecretaryDashboard - Carregando alunos para classe ID:', selectedClass);
+      console.log('SecretaryDashboard - Nome da classe:', selectedClassName);
       if (selectedClassName) {
         const result = await studentFunctions.getStudentsByClass(selectedClassName);
+        console.log('SecretaryDashboard - Resultado de getStudentsByClass:', result);
         if (result.success) {
+          console.log('SecretaryDashboard - Total de alunos carregado:', result.data.length);
           setStudents(result.data);
           // Atualizar matriculados automaticamente com valor oficial do banco
           const matriculatedCount = result.data.length;

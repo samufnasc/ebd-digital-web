@@ -21,10 +21,13 @@ export default function AdminDashboard() {
     const loadTotalStudents = async () => {
       try {
         const result = await studentFunctions.getAllStudents();
+        console.log('AdminDashboard - Resultado de getAllStudents:', result);
         if (result.success && Array.isArray(result.data)) {
           // Usar apenas o comprimento real do array, sem somas ou mocks
+          console.log('AdminDashboard - Total de alunos carregado:', result.data.length);
           setTotalStudents(result.data.length);
         } else {
+          console.warn('AdminDashboard - Erro ao carregar alunos:', result.error);
           setTotalStudents(0);
         }
       } catch (error) {
