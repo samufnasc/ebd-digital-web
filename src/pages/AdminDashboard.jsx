@@ -42,7 +42,12 @@ export default function AdminDashboard() {
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [totalStudents, setTotalStudents] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedClasses, setSelectedClasses] = useState(classes.map(c => c.id));
+  const [selectAllClasses, setSelectAllClasses] = useState(true);
 
   // Carregar total de alunos do banco - apenas o data.length real
   useEffect(() => {
@@ -128,8 +133,37 @@ export default function AdminDashboard() {
   const totalAssistance = Number(consolidatedData.present) + Number(consolidatedData.visitor);
 
   const handleExportPDF = (type = 'general') => {
-    generatePDF(consolidatedData, reportsByClass, selectedDate, type);
+    generatePDF(consolidatedData, reportsByClass, selectedDate, type, { selectedClasses });
     setShowPDFOptions(false);
+  };
+
+  const handleExportMonthlyPDF = () => {
+    generatePDF(consolidatedData, reportsByClass, selectedDate, 'monthly', {
+      month: selectedMonth,
+      year: selectedYear,
+      selectedClasses: selectAllClasses ? null : selectedClasses
+    });
+    setShowMonthlyReport(false);
+  };
+
+  const toggleClassSelection = (classId) => {
+    setSelectedClasses(prev => {
+      const newSelected = prev.includes(classId)
+        ? prev.filter(id => id !== classId)
+        : [...prev, classId];
+      setSelectAllClasses(newSelected.length === classes.length);
+      return newSelected;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAllClasses) {
+      setSelectedClasses([]);
+      setSelectAllClasses(false);
+    } else {
+      setSelectedClasses(classes.map(c => c.id));
+      setSelectAllClasses(true);
+    }
   };
 
   const handleDeleteReports = async () => {
@@ -222,6 +256,12 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold">Relatório Geral</h2>
             <div className="flex gap-2">
               <button
+                onClick={() => setShowMonthlyReport(true)}
+                className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+              >
+                📊 Relatório Mensal
+              </button>
+              <button
                 onClick={() => setShowPDFOptions(true)}
                 className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
               >
@@ -308,6 +348,86 @@ export default function AdminDashboard() {
       {/* User Management Modal */}
       {showUserManagement && (
         <UserManagement onClose={() => setShowUserManagement(false)} />
+      )}
+
+      {/* Monthly Report Modal */}
+      {showMonthlyReport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6">Relatório Geral Mensal</h2>
+            
+            <div className="space-y-4">
+              {/* Seleção de Mês */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mês</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => {
+                    const monthName = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][month - 1];
+                    return <option key={month} value={month}>{monthName}</option>;
+                  })}
+                </select>
+              </div>
+
+              {/* Seleção de Ano */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Ano</label>
+                <input
+                  type="number"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+
+              {/* Seleção de Classes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Classes</label>
+                <div className="border border-gray-300 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                  <label className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectAllClasses}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 text-primary rounded focus:ring-2 focus:ring-primary"
+                    />
+                    <span className="ml-2 font-semibold text-gray-700">Todas as Classes</span>
+                  </label>
+                  <div className="border-t border-gray-200"></div>
+                  {classes.map(cls => (
+                    <label key={cls.id} className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedClasses.includes(cls.id)}
+                        onChange={() => toggleClassSelection(cls.id)}
+                        className="w-4 h-4 text-primary rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <span className="ml-2 text-gray-700">{cls.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowMonthlyReport(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExportMonthlyPDF}
+                className="flex-1 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+              >
+                📊 Gerar PDF
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* PDF Options Modal */}

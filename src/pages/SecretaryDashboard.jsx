@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import CameraCapture from '../components/CameraCapture';
+import ImageProcessor from '../components/ImageProcessor';
 import { processOCR, calculatePercentage, formatCurrency } from '../utils/ocr';
 import { studentFunctions } from '../lib/supabase';
 
@@ -456,9 +456,9 @@ export default function SecretaryDashboard() {
         )}
       </main>
 
-      {/* Camera Modal */}
+      {/* Image Processor Modal (Camera + Gallery + Crop) */}
       {showCamera && (
-        <CameraCapture
+        <ImageProcessor
           onCapture={handleCameraCapture}
           onClose={() => setShowCamera(false)}
         />

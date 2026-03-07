@@ -1,21 +1,39 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const generatePDF = (consolidatedData, reportsByClass, date, type = 'general') => {
-  if (type === 'byClass') {
-    generatePDFByClass(reportsByClass, date);
-  } else {
-    generateGeneralPDF(consolidatedData, reportsByClass, date);
+/**
+ * Função principal de geração de PDF
+ * @param {Object} consolidatedData - Dados consolidados
+ * @param {Object} reportsByClass - Relatórios por classe
+ * @param {string} date - Data no formato YYYY-MM-DD
+ * @param {string} type - Tipo de relatório: 'general', 'byClass', 'monthly'
+ * @param {Object} options - Opções adicionais (mês, classes selecionadas, etc)
+ */
+export const generatePDF = (consolidatedData, reportsByClass, date, type = 'general', options = {}) => {
+  switch (type) {
+    case 'byClass':
+      generatePDFByClass(reportsByClass, date, options.selectedClasses);
+      break;
+    case 'monthly':
+      generateMonthlyPDF(consolidatedData, reportsByClass, options.month, options.year, options.selectedClasses);
+      break;
+    case 'general':
+    default:
+      generateGeneralPDF(consolidatedData, reportsByClass, date);
+      break;
   }
 };
 
+/**
+ * Gera Relatório Geral Diário
+ */
 const generateGeneralPDF = (consolidatedData, reportsByClass, date) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   
   // Configurar fonte
   doc.setFont('helvetica');
   
-  // Cabecalho
+  // Cabeçalho
   doc.setFontSize(18);
   doc.text('EBD DIGITAL', 105, 20, { align: 'center' });
   
@@ -23,7 +41,7 @@ const generateGeneralPDF = (consolidatedData, reportsByClass, date) => {
   doc.text('Relatório Geral', 105, 28, { align: 'center' });
   
   doc.setFontSize(10);
-  doc.text(`Data: ${date}`, 105, 35, { align: 'center' });
+  doc.text(`Data: ${formatDateToBrazilian(date)}`, 105, 35, { align: 'center' });
 
   // Preparar dados da tabela
   const tableData = [];
@@ -114,11 +132,176 @@ const generateGeneralPDF = (consolidatedData, reportsByClass, date) => {
   doc.save(`relatorio-ebd-${date}.pdf`);
 };
 
-const generatePDFByClass = (reportsByClass, date) => {
+/**
+ * Gera Relatório Mensal Consolidado
+ * @param {Object} consolidatedData - Dados consolidados
+ * @param {Object} reportsByClass - Todos os relatórios por classe
+ * @param {number} month - Mês (1-12)
+ * @param {number} year - Ano
+ * @param {Array} selectedClasses - IDs das classes selecionadas (null = todas)
+ */
+const generateMonthlyPDF = (consolidatedData, reportsByClass, month, year, selectedClasses = null) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  
+  // Configurar fonte
+  doc.setFont('helvetica');
+  
+  // Cabeçalho
+  doc.setFontSize(18);
+  doc.text('EBD DIGITAL', 105, 20, { align: 'center' });
+  
+  doc.setFontSize(14);
+  doc.text('Relatório Geral Mensal', 105, 28, { align: 'center' });
+  
+  const monthName = getMonthName(month);
+  doc.setFontSize(11);
+  doc.text(`${monthName} de ${year}`, 105, 35, { align: 'center' });
+  
+  doc.setFontSize(9);
+  doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 105, 41, { align: 'center' });
+
+  // Informações da Igreja
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Igreja Evangélica EBD Digital', 14, 50);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Relatório Consolidado de Frequência e Ofertas', 14, 56);
+
+  // Preparar dados da tabela
+  const tableData = [];
+  let totalMatriculados = 0;
+  let totalPresentes = 0;
+  let totalAusentes = 0;
+  let totalVisitantes = 0;
+  let totalBiblias = 0;
+  let totalRevistas = 0;
+  let totalOfertas = 0;
+
+  Object.entries(reportsByClass).forEach(([classId, classData]) => {
+    // Filtrar classes selecionadas se aplicável
+    if (selectedClasses && !selectedClasses.includes(classId)) {
+      return;
+    }
+
+    const percentage = classData.matriculated > 0
+      ? Math.round((classData.present / classData.matriculated) * 100)
+      : 0;
+    
+    totalMatriculados += classData.matriculated;
+    totalPresentes += classData.present;
+    totalAusentes += classData.absent;
+    totalVisitantes += classData.visitor;
+    totalBiblias += classData.bibles;
+    totalRevistas += classData.magazines;
+    totalOfertas += classData.offering;
+    
+    tableData.push([
+      classData.className,
+      classData.matriculated,
+      classData.absent,
+      classData.present,
+      classData.visitor,
+      `${percentage}%`,
+      classData.bibles,
+      classData.magazines,
+      `R$ ${classData.offering.toFixed(2)}`,
+    ]);
+  });
+
+  // Adicionar linha de totais
+  const totalPercentage = totalMatriculados > 0
+    ? Math.round((totalPresentes / totalMatriculados) * 100)
+    : 0;
+
+  tableData.push([
+    'TOTAL',
+    totalMatriculados,
+    totalAusentes,
+    totalPresentes,
+    totalVisitantes,
+    `${totalPercentage}%`,
+    totalBiblias,
+    totalRevistas,
+    `R$ ${totalOfertas.toFixed(2)}`,
+  ]);
+
+  // Criar tabela
+  autoTable(doc, {
+    head: [['Classe', 'Mat', 'Aus', 'Pres', 'Vis', '%', 'Bibl', 'Rev', 'Oferta']],
+    body: tableData,
+    startY: 65,
+    theme: 'grid',
+    headerStyles: {
+      fillColor: [10, 126, 164],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 9,
+    },
+    bodyStyles: {
+      textColor: [0, 0, 0],
+      halign: 'center',
+      fontSize: 9,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 245, 245],
+    },
+    margin: { top: 65, right: 10, bottom: 40, left: 10 },
+  });
+
+  // Adicionar seção de resumo
+  const finalY = doc.lastAutoTable?.finalY || 200;
+  
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RESUMO DO MÊS', 14, finalY + 15);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  const summaryData = [
+    `Total de Matriculados: ${totalMatriculados}`,
+    `Total de Presentes: ${totalPresentes}`,
+    `Total de Ausentes: ${totalAusentes}`,
+    `Total de Visitantes: ${totalVisitantes}`,
+    `Frequência Média: ${totalPercentage}%`,
+    `Total de Bíblias Distribuídas: ${totalBiblias}`,
+    `Total de Revistas Distribuídas: ${totalRevistas}`,
+    `Total de Ofertas: R$ ${totalOfertas.toFixed(2)}`,
+  ];
+
+  let summaryY = finalY + 25;
+  summaryData.forEach(item => {
+    doc.text(item, 14, summaryY);
+    summaryY += 7;
+  });
+
+  // Rodapé
+  const pageSize = doc.internal.pageSize;
+  const pageHeight = pageSize.getHeight();
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.text('Relatório gerado automaticamente pelo sistema EBD Digital', 14, pageHeight - 10);
+
+  // Download
+  const fileName = `relatorio-mensal-ebd-${month}-${year}.pdf`;
+  doc.save(fileName);
+};
+
+/**
+ * Gera Relatórios por Classe
+ */
+const generatePDFByClass = (reportsByClass, date, selectedClasses = null) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   let isFirstPage = true;
 
-  Object.values(reportsByClass).forEach((classData, index) => {
+  Object.entries(reportsByClass).forEach(([classId, classData], index) => {
+    // Filtrar classes selecionadas se aplicável
+    if (selectedClasses && !selectedClasses.includes(classId)) {
+      return;
+    }
+
     if (!isFirstPage) {
       doc.addPage();
     }
@@ -133,7 +316,7 @@ const generatePDFByClass = (reportsByClass, date) => {
     doc.text(`Classe: ${classData.className}`, 105, 30, { align: 'center' });
     
     doc.setFontSize(10);
-    doc.text(`Data: ${date}`, 105, 38, { align: 'center' });
+    doc.text(`Data: ${formatDateToBrazilian(date)}`, 105, 38, { align: 'center' });
 
     // Dados da classe
     const tableData = [
@@ -183,5 +366,25 @@ const generatePDFByClass = (reportsByClass, date) => {
   });
 
   // Download
-  doc.save(`relatorio-ebd-por-classe-${date}.pdf`);
+  doc.save(`relatorio-ebd-por-classe-${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+/**
+ * Função auxiliar para formatar data YYYY-MM-DD para DD/MM/YYYY
+ */
+const formatDateToBrazilian = (dateString) => {
+  if (!dateString) return '';
+  const [year, month, day] = dateString.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+/**
+ * Função auxiliar para obter nome do mês
+ */
+const getMonthName = (month) => {
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  return months[month - 1] || 'Mês Inválido';
 };

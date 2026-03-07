@@ -2,7 +2,7 @@ import Tesseract from 'tesseract.js';
 
 /**
  * Pré-processa a imagem para melhorar o OCR
- * Aumenta contraste e converte para escala de cinza
+ * Aumenta contraste, converte para escala de cinza e aplica threshold
  */
 const preprocessImage = (imageData) => {
   return new Promise((resolve) => {
@@ -26,10 +26,10 @@ const preprocessImage = (imageData) => {
         const g = data[i + 1];
         const b = data[i + 2];
 
-        // Converter para escala de cinza
+        // Converter para escala de cinza usando luminância
         const gray = r * 0.299 + g * 0.587 + b * 0.114;
 
-        // Aumentar contraste (threshold)
+        // Aplicar threshold para melhorar legibilidade
         const threshold = gray > 128 ? 255 : 0;
 
         data[i] = threshold;
@@ -45,22 +45,61 @@ const preprocessImage = (imageData) => {
 };
 
 /**
- * Processa OCR da imagem usando Tesseract.js
- * Extrai dados das 5 colunas (domingos) da caderneta
- * Retorna apenas os dados da última coluna preenchida
+ * Aumenta o tamanho da imagem para melhorar OCR
+ * Tesseract funciona melhor com imagens maiores
  */
-export const processOCR = async (imageData) => {
+const upscaleImage = (imageData, scale = 2) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+
+      // Usar interpolação de alta qualidade
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = imageData;
+  });
+};
+
+/**
+ * Processa OCR da imagem usando Tesseract.js
+ * Otimizado para imagens cortadas com apenas a área dos números
+ * @param {string} imageData - Imagem em formato data URL
+ * @param {boolean} isCropped - Se a imagem já foi cortada (default: true)
+ */
+export const processOCR = async (imageData, isCropped = true) => {
   try {
+    console.log('OCR - Iniciando processamento de imagem...');
+    console.log('OCR - Imagem cortada:', isCropped);
+
     // Pré-processar imagem
-    const processedImage = await preprocessImage(imageData);
+    console.log('OCR - Pré-processando imagem...');
+    let processedImage = await preprocessImage(imageData);
+
+    // Se imagem foi cortada, aumentar tamanho para melhorar OCR
+    if (isCropped) {
+      console.log('OCR - Aumentando escala da imagem...');
+      processedImage = await upscaleImage(processedImage, 3);
+    }
 
     // Inicializar Tesseract
+    console.log('OCR - Inicializando Tesseract...');
     const { createWorker } = Tesseract;
     const worker = await createWorker('por'); // Português
 
     // Processar imagem
+    console.log('OCR - Reconhecendo texto...');
     const result = await worker.recognize(processedImage);
     const text = result.data.text;
+
+    console.log('OCR - Texto reconhecido:', text);
 
     // Terminar worker
     await worker.terminate();
@@ -73,6 +112,15 @@ export const processOCR = async (imageData) => {
     const biblias = text.match(/[Bb]í?blias?[:\s]+(\d+)/)?.[1] || '9';
     const revistas = text.match(/[Rr]evistas?[:\s]+(\d+)/)?.[1] || '8';
     const ofertas = text.match(/[Oo]ferta[s]?[:\s]+(\d+[.,]\d{2})/)?.[1]?.replace(',', '.') || '15.50';
+
+    console.log('OCR - Dados extraídos:', {
+      presentes,
+      ausentes,
+      visitantes,
+      biblias,
+      revistas,
+      ofertas
+    });
 
     // Estrutura esperada: 5 colunas com dados
     const mockColumns = [
@@ -96,6 +144,8 @@ export const processOCR = async (imageData) => {
     if (!lastFilledColumn) {
       lastFilledColumn = mockColumns[0];
     }
+
+    console.log('OCR - Coluna selecionada:', lastFilledColumn);
 
     return {
       success: true,
