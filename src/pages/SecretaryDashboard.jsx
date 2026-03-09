@@ -576,7 +576,6 @@ export default function SecretaryDashboard() {
                 {students.map((student, idx) => (
                   <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="font-medium text-gray-900">{student.nome || student.name || 'Sem nome'}</p>
-                    <p className="text-sm text-gray-600">ID: {student.id}</p>
                   </div>
                 ))}
               </div>

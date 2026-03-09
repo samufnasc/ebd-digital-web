@@ -45,6 +45,8 @@ export const DataProvider = ({ children }) => {
 
       if (result.success && result.data && Array.isArray(result.data)) {
         // Converter dados do Supabase para formato local
+        // ✅ IMPORTANTE: Manter data em formato ISO (YYYY-MM-DD) puro do Supabase
+        // Deixar que o componente Dashboard decida como exibir (DD/MM/YYYY)
         const formattedReports = result.data.map(report => {
           // ✅ NORMALIZAÇÃO: trim() para ignorar espaços acidentais
           const reportClassName = report.classe?.trim() || '';
@@ -52,7 +54,7 @@ export const DataProvider = ({ children }) => {
           
           return {
             id: report.id,
-            date: report.data_aula,
+            date: report.data_aula, // ✅ Mantém formato ISO (YYYY-MM-DD) do Supabase
             classId: classData?.id || '1',
             className: reportClassName,
             matriculated: Number(report.matriculados),
@@ -85,14 +87,16 @@ export const DataProvider = ({ children }) => {
     setError(null);
     try {
       const classData = classes.find(c => c.id === classId);
-      // ✅ CORREÇÃO: Usar data de Brasília (UTC-3) em vez de UTC
-      const today = getTodayBrasilia();
+      
+      // ✅ IMPORTANTE: Usar a data que vem do formData (já formatada pelo Dashboard em YYYY-MM-DD)
+      // Não sobrescrever com getTodayBrasilia() - deixar que o Dashboard controle a data
+      const dateToSave = formData.date || getTodayBrasilia();
 
-      console.log('DataContext - Salvando relatório com data:', today);
+      console.log('DataContext - Salvando relatório com data:', dateToSave, '(formato YYYY-MM-DD)');
 
       // Salvar no Supabase
       const result = await reportFunctions.saveReport({
-        date: today,
+        date: dateToSave,
         className: classData.name,
         matriculated: Number(formData.matriculated),
         absent: Number(formData.absent),
@@ -105,7 +109,7 @@ export const DataProvider = ({ children }) => {
 
       if (result.success) {
         // Recarregar relatórios da data imediatamente após sucesso
-        await loadReports(today);
+        await loadReports(dateToSave);
         return { success: true };
       } else {
         setError(result.error || 'Erro ao salvar relatório');
@@ -121,8 +125,12 @@ export const DataProvider = ({ children }) => {
   };
 
   // Obter relatórios por data
+  // ✅ IMPORTANTE: Comparar datas em formato ISO (YYYY-MM-DD)
   const getReportsByDate = (date) => {
-    return reports.filter(r => r.date === date);
+    // Garantir que a data está em formato YYYY-MM-DD
+    const normalizedDate = typeof date === 'string' ? date : '';
+    console.log('DataContext - Filtrando relatórios pela data:', normalizedDate);
+    return reports.filter(r => r.date === normalizedDate);
   };
 
   // Obter todos os relatórios
