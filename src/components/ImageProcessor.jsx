@@ -18,6 +18,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [mode, setMode] = useState('camera'); // 'camera' ou 'gallery'
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const animationFrameRef = useRef(null); // ✅ Para requestAnimationFrame
 
   // Iniciar câmera
   useEffect(() => {
@@ -106,29 +107,87 @@ export default function ImageProcessor({ onCapture, onClose }) {
   const handleMouseMove = (e) => {
     if (!isDragging || !isCropping) return;
 
-    const deltaX = e.clientX - dragStart.x;
-    const deltaY = e.clientY - dragStart.y;
+    // ✅ OTIMIZAÇÃO: Usar requestAnimationFrame para evitar lag
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
-    setCropArea(prev => {
-      let newX = prev.x + deltaX;
-      let newY = prev.y + deltaY;
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
 
-      // Limitar aos limites da imagem
-      newX = Math.max(0, Math.min(newX, imageSize.width - prev.width));
-      newY = Math.max(0, Math.min(newY, imageSize.height - prev.height));
+      setCropArea(prev => {
+        let newX = prev.x + deltaX;
+        let newY = prev.y + deltaY;
 
-      return {
-        ...prev,
-        x: newX,
-        y: newY,
-      };
+        // Limitar aos limites da imagem
+        newX = Math.max(0, Math.min(newX, imageSize.width - prev.width));
+        newY = Math.max(0, Math.min(newY, imageSize.height - prev.height));
+
+        return {
+          ...prev,
+          x: newX,
+          y: newY,
+        };
+      });
+
+      setDragStart({ x: e.clientX, y: e.clientY });
     });
-
-    setDragStart({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+  };
+
+  // ✅ TOUCH EVENTS: Suporte para dispositivos móveis
+  const handleTouchStart = (e) => {
+    if (!isCropping) return;
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging || !isCropping) return;
+    e.preventDefault();
+
+    // ✅ OTIMIZAÇÃO: Usar requestAnimationFrame para evitar lag em touch
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - dragStart.x;
+      const deltaY = touch.clientY - dragStart.y;
+
+      setCropArea(prev => {
+        let newX = prev.x + deltaX;
+        let newY = prev.y + deltaY;
+
+        // Limitar aos limites da imagem
+        newX = Math.max(0, Math.min(newX, imageSize.width - prev.width));
+        newY = Math.max(0, Math.min(newY, imageSize.height - prev.height));
+
+        return {
+          ...prev,
+          x: newX,
+          y: newY,
+        };
+      });
+
+      setDragStart({ x: touch.clientX, y: touch.clientY });
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
   };
 
   // ✅ HANDLES EM 8 PONTOS (4 cantos + 4 laterais)
@@ -141,8 +200,14 @@ export default function ImageProcessor({ onCapture, onClose }) {
     const startCropArea = { ...cropArea };
 
     const handleResizeMove = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
+      // ✅ OTIMIZAÇÃO: Usar requestAnimationFrame para redimensionamento
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      animationFrameRef.current = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
 
       let newCropArea = { ...startCropArea };
 
@@ -168,16 +233,26 @@ export default function ImageProcessor({ onCapture, onClose }) {
         }
       }
 
-      setCropArea(newCropArea);
+        setCropArea(newCropArea);
+      });
     };
 
     const handleResizeEnd = () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       document.removeEventListener('mousemove', handleResizeMove);
       document.removeEventListener('mouseup', handleResizeEnd);
     };
 
+    // ✅ Adicionar suporte a touch events para redimensionamento
     document.addEventListener('mousemove', handleResizeMove);
     document.addEventListener('mouseup', handleResizeEnd);
+    document.addEventListener('touchmove', (e) => {
+      const touch = e.touches[0];
+      handleResizeMove({ clientX: touch.clientX, clientY: touch.clientY });
+    }, { passive: false });
+    document.addEventListener('touchend', handleResizeEnd);
   };
 
   const confirmCrop = () => {
@@ -331,13 +406,16 @@ export default function ImageProcessor({ onCapture, onClose }) {
                 Ajuste o retângulo para selecionar apenas a área dos números
               </p>
 
-              {/* Crop Container - ✅ COM MAX-WIDTH PARA EVITAR OVERFLOW */}
+              {/* Crop Container - ✅ COM MAX-WIDTH PARA EVITAR OVERFLOW + TOUCH EVENTS */}
               <div
                 ref={cropContainerRef}
                 className="relative bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300"
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 style={{ aspectRatio: '4/3', maxWidth: '100%', width: '100%' }}
               >
                 <img
@@ -345,6 +423,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
                   alt="Para cortar"
                   className="w-full h-full object-cover"
                   onMouseDown={handleMouseDown}
+                  onTouchStart={handleTouchStart}
                 />
 
                 {/* Overlay escuro */}
@@ -372,48 +451,57 @@ export default function ImageProcessor({ onCapture, onClose }) {
                       height: `${(cropArea.height / imageSize.height) * 100}%`,
                     }}
                     onMouseDown={handleMouseDown}
+                    onTouchStart={handleTouchStart}
                   >
                     {/* ✅ 8 HANDLES: 4 CANTOS + 4 LATERAIS */}
-                    {/* Top-Left Corner */}
+                    {/* ✅ Top-Left Corner */}
                     <div
                       className="absolute -left-2 -top-2 w-4 h-4 bg-green-400 rounded-full cursor-nwse-resize"
                       onMouseDown={(e) => handleResize('left-top', e)}
+                      onTouchStart={(e) => handleResize('left-top', e)}
                     />
-                    {/* Top-Right Corner */}
+                    {/* ✅ Top-Right Corner */}
                     <div
                       className="absolute -right-2 -top-2 w-4 h-4 bg-green-400 rounded-full cursor-nesw-resize"
                       onMouseDown={(e) => handleResize('right-top', e)}
+                      onTouchStart={(e) => handleResize('right-top', e)}
                     />
-                    {/* Bottom-Left Corner */}
+                    {/* ✅ Bottom-Left Corner */}
                     <div
                       className="absolute -left-2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-nesw-resize"
                       onMouseDown={(e) => handleResize('left-bottom', e)}
+                      onTouchStart={(e) => handleResize('left-bottom', e)}
                     />
-                    {/* Bottom-Right Corner */}
+                    {/* ✅ Bottom-Right Corner */}
                     <div
                       className="absolute -right-2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-se-resize"
                       onMouseDown={(e) => handleResize('right-bottom', e)}
+                      onTouchStart={(e) => handleResize('right-bottom', e)}
                     />
 
-                    {/* Top Edge */}
+                    {/* ✅ Top Edge */}
                     <div
                       className="absolute left-1/2 -translate-x-1/2 -top-2 w-6 h-4 bg-green-400 rounded-full cursor-ns-resize"
                       onMouseDown={(e) => handleResize('top', e)}
+                      onTouchStart={(e) => handleResize('top', e)}
                     />
-                    {/* Bottom Edge */}
+                    {/* ✅ Bottom Edge */}
                     <div
                       className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-6 h-4 bg-green-400 rounded-full cursor-ns-resize"
                       onMouseDown={(e) => handleResize('bottom', e)}
+                      onTouchStart={(e) => handleResize('bottom', e)}
                     />
-                    {/* Left Edge */}
+                    {/* ✅ Left Edge */}
                     <div
                       className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-green-400 rounded-full cursor-ew-resize"
                       onMouseDown={(e) => handleResize('left', e)}
+                      onTouchStart={(e) => handleResize('left', e)}
                     />
-                    {/* Right Edge */}
+                    {/* ✅ Right Edge */}
                     <div
                       className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-green-400 rounded-full cursor-ew-resize"
                       onMouseDown={(e) => handleResize('right', e)}
+                      onTouchStart={(e) => handleResize('right', e)}
                     />
                   </div>
                 )}

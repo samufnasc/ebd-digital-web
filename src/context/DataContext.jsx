@@ -28,8 +28,9 @@ const getTodayBrasilia = () => {
 export const DataProvider = ({ children }) => {
   const [reports, setReports] = useState([]);
   const [classes] = useState(INITIAL_CLASSES);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // ✅ Inicia como true (carregando)
   const [error, setError] = useState(null);
+  const [isLoaded, setIsLoaded] = useState(false); // ✅ Flag para indicar que dados foram carregados
 
   // Carregar relatórios do Supabase - memoizado para evitar loops infinitos
   const loadReports = useCallback(async (date = null) => {
@@ -78,6 +79,8 @@ export const DataProvider = ({ children }) => {
       setReports([]);
     } finally {
       setLoading(false);
+      setIsLoaded(true); // ✅ Marcar como carregado após primeira carga
+      console.log('DataContext - Relatórios carregados. Total:', result?.data?.length || 0);
     }
   }, [classes]);
 
@@ -172,6 +175,7 @@ export const DataProvider = ({ children }) => {
     reports,
     classes,
     loading,
+    isLoaded, // ✅ Exportar flag de carregamento
     error,
     loadReports,
     saveReport,
