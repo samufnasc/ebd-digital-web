@@ -71,16 +71,17 @@ export const DataProvider = ({ children }) => {
         setReports(formattedReports);
       } else {
         setError(result?.error || 'Erro ao carregar relatórios');
-        setReports([]);
+        console.warn('DataContext - Erro ao carregar relatórios:', result?.error);
       }
     } catch (err) {
-      console.error('Erro ao carregar relatórios:', err);
+      console.error('DataContext - Erro ao carregar relatórios:', err);
       setError(err.message);
-      setReports([]);
+      console.warn('DataContext - Mantendo relatórios em cache devido ao erro');
     } finally {
       setLoading(false);
-      setIsLoaded(true); // ✅ Marcar como carregado após primeira carga
+      setIsLoaded(true);
       console.log('DataContext - Relatórios carregados. Total:', result?.data?.length || 0);
+      console.log('DataContext - isLoaded = true, loading = false');
     }
   }, [classes]);
 

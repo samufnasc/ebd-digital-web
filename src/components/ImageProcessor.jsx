@@ -145,14 +145,27 @@ export default function ImageProcessor({ onCapture, onClose }) {
   // ✅ TOUCH EVENTS: Suporte para dispositivos móveis
   const handleTouchStart = (e) => {
     if (!isCropping) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
     const touch = e.touches[0];
-    setIsDragging(true);
-    setDragStart({ x: touch.clientX, y: touch.clientY });
+    const container = cropContainerRef.current;
+    
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const relativeX = touch.clientX - rect.left;
+      const relativeY = touch.clientY - rect.top;
+      
+      setIsDragging(true);
+      setDragStart({ x: relativeX, y: relativeY });
+      console.log('ImageProcessor - Touch Start (relativo):', { relativeX, relativeY });
+    }
   };
 
   const handleTouchMove = (e) => {
     if (!isDragging || !isCropping) return;
     e.preventDefault();
+    e.stopPropagation();
 
     // ✅ OTIMIZAÇÃO: Usar requestAnimationFrame para evitar lag em touch
     if (animationFrameRef.current) {
@@ -161,42 +174,69 @@ export default function ImageProcessor({ onCapture, onClose }) {
 
     animationFrameRef.current = requestAnimationFrame(() => {
       const touch = e.touches[0];
-      const deltaX = touch.clientX - dragStart.x;
-      const deltaY = touch.clientY - dragStart.y;
+      const container = cropContainerRef.current;
+      
+      if (container) {
+        // ✅ SINCRONIZAÇÃO: Coordenadas relativas ao container
+        const rect = container.getBoundingClientRect();
+        const relativeX = touch.clientX - rect.left;
+        const relativeY = touch.clientY - rect.top;
+        
+        const deltaX = relativeX - dragStart.x;
+        const deltaY = relativeY - dragStart.y;
 
-      setCropArea(prev => {
-        let newX = prev.x + deltaX;
-        let newY = prev.y + deltaY;
+        setCropArea(prev => {
+          let newX = prev.x + deltaX;
+          let newY = prev.y + deltaY;
 
-        // Limitar aos limites da imagem
-        newX = Math.max(0, Math.min(newX, imageSize.width - prev.width));
-        newY = Math.max(0, Math.min(newY, imageSize.height - prev.height));
+          // Limitar aos limites da imagem
+          newX = Math.max(0, Math.min(newX, imageSize.width - prev.width));
+          newY = Math.max(0, Math.min(newY, imageSize.height - prev.height));
 
-        return {
-          ...prev,
-          x: newX,
-          y: newY,
-        };
-      });
+          return {
+            ...prev,
+            x: newX,
+            y: newY,
+          };
+        });
 
-      setDragStart({ x: touch.clientX, y: touch.clientY });
+        setDragStart({ x: relativeX, y: relativeY });
+      }
     });
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     setIsDragging(false);
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
+    console.log('ImageProcessor - Touch End');
   };
 
   // ✅ HANDLES EM 8 PONTOS (4 cantos + 4 laterais)
   const handleResize = (direction, e) => {
     if (!isCropping) return;
     e.preventDefault();
+    e.stopPropagation();
     
-    const startX = e.clientX;
-    const startY = e.clientY;
+    const container = cropContainerRef.current;
+    let startX, startY;
+    
+    if (container && e.touches) {
+      // ✅ SINCRONIZAÇÃO: Touch event - coordenadas relativas
+      const rect = container.getBoundingClientRect();
+      const touch = e.touches[0];
+      startX = touch.clientX - rect.left;
+      startY = touch.clientY - rect.top;
+    } else {
+      // Mouse event
+      startX = e.clientX;
+      startY = e.clientY;
+    }
+    
     const startCropArea = { ...cropArea };
 
     const handleResizeMove = (moveEvent) => {
@@ -206,8 +246,19 @@ export default function ImageProcessor({ onCapture, onClose }) {
       }
 
       animationFrameRef.current = requestAnimationFrame(() => {
-        const deltaX = moveEvent.clientX - startX;
-        const deltaY = moveEvent.clientY - startY;
+        let deltaX, deltaY;
+        
+        if (container && moveEvent.touches) {
+          // ✅ SINCRONIZAÇÃO: Touch event - coordenadas relativas
+          const rect = container.getBoundingClientRect();
+          const touch = moveEvent.touches[0];
+          deltaX = (touch.clientX - rect.left) - startX;
+          deltaY = (touch.clientY - rect.top) - startY;
+        } else {
+          // Mouse event
+          deltaX = moveEvent.clientX - startX;
+          deltaY = moveEvent.clientY - startY;
+        }
 
       let newCropArea = { ...startCropArea };
 
