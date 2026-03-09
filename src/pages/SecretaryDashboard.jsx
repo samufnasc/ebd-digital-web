@@ -203,12 +203,18 @@ export default function SecretaryDashboard() {
     const result = await studentFunctions.getStudentsByClass(selectedClassName);
     const officialMatriculatedCount = result.success ? result.data.length : formData.matriculated;
 
+    // ✅ BLINDAGEM TOTAL DE DATA: Forçar YYYY-MM-DD em TODAS as etapas
+    const dateForDatabase = getTodayForDatabase(); // Garantir formato YYYY-MM-DD
+    console.log('SecretaryDashboard - Data para Supabase:', dateForDatabase, '(formato YYYY-MM-DD)');
+    console.log('SecretaryDashboard - Data para exibição:', formatDateToBrazilian(dateForDatabase), '(formato DD/MM/YYYY)');
+
     const reportData = {
       ...formData,
       matriculated: officialMatriculatedCount,
-      // ✅ FORÇA DATA EM FORMATO YYYY-MM-DD PARA SUPABASE
-      date: getTodayForDatabase()
+      date: dateForDatabase // ✅ FORÇA YYYY-MM-DD
     };
+
+    console.log('SecretaryDashboard - Dados completos do relatório:', reportData);
 
     saveReport(selectedClass, reportData);
     alert('Relatório salvo com sucesso!');
@@ -230,8 +236,10 @@ export default function SecretaryDashboard() {
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
   const totalAssistance = formData.present + formData.visitor;
-  // ✅ CORREÇÃO: Usar getTodayForDatabase() para formato YYYY-MM-DD
-  const todayForDisplay = getTodayForDatabase();
+  
+  // ✅ BLINDAGEM DE DATA: Forçar YYYY-MM-DD em TODAS as operações
+  const todayForDatabase = getTodayForDatabase(); // YYYY-MM-DD para Supabase
+  const todayForDisplay = formatDateToBrazilian(todayForDatabase); // DD/MM/YYYY para tela
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -265,7 +273,7 @@ export default function SecretaryDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <p className="text-gray-600 text-sm">Data</p>
             {/* ✅ EXIBIÇÃO: Mostrar data em formato brasileiro DD/MM/YYYY */}
-            <p className="text-3xl font-bold text-primary">{formatDateToBrazilian(todayForDisplay)}</p>
+            <p className="text-3xl font-bold text-primary">{todayForDisplay}</p>
           </div>
         </div>
 
@@ -281,7 +289,19 @@ export default function SecretaryDashboard() {
               </label>
               <select
                 value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value);
+                  // ✅ BLINDAGEM: Resetar dados quando classe mudar
+                  setFormData({
+                    matriculated: 0,
+                    absent: 0,
+                    present: 0,
+                    visitor: 0,
+                    bibles: 0,
+                    magazines: 0,
+                    offering: 0,
+                  });
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
               >
                 {classes.map(cls => (
@@ -555,7 +575,7 @@ export default function SecretaryDashboard() {
               <div className="space-y-2">
                 {students.map((student, idx) => (
                   <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{student.name}</p>
+                    <p className="font-medium text-gray-900">{student.nome || student.name || 'Sem nome'}</p>
                     <p className="text-sm text-gray-600">ID: {student.id}</p>
                   </div>
                 ))}
