@@ -9,6 +9,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cropContainerRef = useRef(null);
   const [stream, setStream] = useState(null);
   const [image, setImage] = useState(null);
   const [isCropping, setIsCropping] = useState(false);
@@ -16,6 +17,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [mode, setMode] = useState('camera'); // 'camera' ou 'gallery'
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
 
   // Iniciar câmera
   useEffect(() => {
@@ -29,16 +31,23 @@ export default function ImageProcessor({ onCapture, onClose }) {
     };
   }, [mode]);
 
-  // Inicializar área de crop quando imagem for carregada
+  // Inicializar área de crop quando imagem for carregada (centralizada e 80% do tamanho)
   useEffect(() => {
-    if (image && isCropping) {
+    if (image && isCropping && cropContainerRef.current) {
       const img = new Image();
       img.onload = () => {
-        // Inicializar crop area no centro da imagem (60% da imagem)
+        const containerWidth = cropContainerRef.current?.offsetWidth || img.width;
+        const containerHeight = cropContainerRef.current?.offsetHeight || img.height;
+        
+        // Calcular dimensões: 80% da imagem
         const width = img.width * 0.8;
         const height = img.height * 0.6;
+        
+        // Centralizar
         const x = (img.width - width) / 2;
         const y = (img.height - height) / 2;
+        
+        setImageSize({ width: img.width, height: img.height });
         setCropArea({ x, y, width, height });
       };
       img.src = image;
@@ -100,11 +109,20 @@ export default function ImageProcessor({ onCapture, onClose }) {
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
 
-    setCropArea(prev => ({
-      ...prev,
-      x: Math.max(0, prev.x + deltaX),
-      y: Math.max(0, prev.y + deltaY),
-    }));
+    setCropArea(prev => {
+      let newX = prev.x + deltaX;
+      let newY = prev.y + deltaY;
+
+      // Limitar aos limites da imagem
+      newX = Math.max(0, Math.min(newX, imageSize.width - prev.width));
+      newY = Math.max(0, Math.min(newY, imageSize.height - prev.height));
+
+      return {
+        ...prev,
+        x: newX,
+        y: newY,
+      };
+    });
 
     setDragStart({ x: e.clientX, y: e.clientY });
   };
@@ -113,6 +131,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
     setIsDragging(false);
   };
 
+  // ✅ HANDLES EM 8 PONTOS (4 cantos + 4 laterais)
   const handleResize = (direction, e) => {
     if (!isCropping) return;
     e.preventDefault();
@@ -127,19 +146,26 @@ export default function ImageProcessor({ onCapture, onClose }) {
 
       let newCropArea = { ...startCropArea };
 
+      // Redimensionar baseado na direção
       if (direction.includes('right')) {
-        newCropArea.width = Math.max(50, startCropArea.width + deltaX);
+        newCropArea.width = Math.max(50, Math.min(startCropArea.width + deltaX, imageSize.width - startCropArea.x));
       }
       if (direction.includes('bottom')) {
-        newCropArea.height = Math.max(50, startCropArea.height + deltaY);
+        newCropArea.height = Math.max(50, Math.min(startCropArea.height + deltaY, imageSize.height - startCropArea.y));
       }
       if (direction.includes('left')) {
-        newCropArea.x = startCropArea.x + deltaX;
-        newCropArea.width = startCropArea.width - deltaX;
+        const newWidth = startCropArea.width - deltaX;
+        if (newWidth > 50) {
+          newCropArea.x = Math.max(0, startCropArea.x + deltaX);
+          newCropArea.width = newWidth;
+        }
       }
       if (direction.includes('top')) {
-        newCropArea.y = startCropArea.y + deltaY;
-        newCropArea.height = startCropArea.height - deltaY;
+        const newHeight = startCropArea.height - deltaY;
+        if (newHeight > 50) {
+          newCropArea.y = Math.max(0, startCropArea.y + deltaY);
+          newCropArea.height = newHeight;
+        }
       }
 
       setCropArea(newCropArea);
@@ -225,7 +251,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
             {mode === 'camera' ? (
               <>
                 {/* Camera View */}
-                <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '4/3' }}>
+                <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '4/3', maxWidth: '100%' }}>
                   <video
                     ref={videoRef}
                     autoPlay
@@ -305,13 +331,14 @@ export default function ImageProcessor({ onCapture, onClose }) {
                 Ajuste o retângulo para selecionar apenas a área dos números
               </p>
 
-              {/* Crop Container */}
+              {/* Crop Container - ✅ COM MAX-WIDTH PARA EVITAR OVERFLOW */}
               <div
+                ref={cropContainerRef}
                 className="relative bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300"
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
-                style={{ aspectRatio: '4/3' }}
+                style={{ aspectRatio: '4/3', maxWidth: '100%', width: '100%' }}
               >
                 <img
                   src={image}
@@ -326,50 +353,77 @@ export default function ImageProcessor({ onCapture, onClose }) {
                   style={{
                     clipPath: `polygon(
                       0% 0%, 0% 100%, 100% 100%, 100% 0%, 0% 0%,
-                      ${cropArea.x}px ${cropArea.y}px,
-                      ${cropArea.x + cropArea.width}px ${cropArea.y}px,
-                      ${cropArea.x + cropArea.width}px ${cropArea.y + cropArea.height}px,
-                      ${cropArea.x}px ${cropArea.y + cropArea.height}px
+                      ${(cropArea.x / imageSize.width) * 100}% ${(cropArea.y / imageSize.height) * 100}%,
+                      ${((cropArea.x + cropArea.width) / imageSize.width) * 100}% ${(cropArea.y / imageSize.height) * 100}%,
+                      ${((cropArea.x + cropArea.width) / imageSize.width) * 100}% ${((cropArea.y + cropArea.height) / imageSize.height) * 100}%,
+                      ${(cropArea.x / imageSize.width) * 100}% ${((cropArea.y + cropArea.height) / imageSize.height) * 100}%
                     )`
                   }}
                 />
 
-                {/* Crop Area Border */}
-                <div
-                  className="absolute border-2 border-green-400 cursor-move"
-                  style={{
-                    left: `${cropArea.x}px`,
-                    top: `${cropArea.y}px`,
-                    width: `${cropArea.width}px`,
-                    height: `${cropArea.height}px`,
-                  }}
-                  onMouseDown={handleMouseDown}
-                >
-                  {/* Resize Handles */}
+                {/* Crop Area Border e Handles */}
+                {imageSize.width > 0 && (
                   <div
-                    className="absolute -right-2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-se-resize"
-                    onMouseDown={(e) => handleResize('right-bottom', e)}
-                  />
-                  <div
-                    className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-green-400 rounded-full cursor-ew-resize"
-                    onMouseDown={(e) => handleResize('right', e)}
-                  />
-                  <div
-                    className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-ns-resize"
-                    onMouseDown={(e) => handleResize('bottom', e)}
-                  />
-                  <div
-                    className="absolute -left-2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-sw-resize"
-                    onMouseDown={(e) => handleResize('left-bottom', e)}
-                  />
-                </div>
+                    className="absolute border-2 border-green-400 cursor-move group"
+                    style={{
+                      left: `${(cropArea.x / imageSize.width) * 100}%`,
+                      top: `${(cropArea.y / imageSize.height) * 100}%`,
+                      width: `${(cropArea.width / imageSize.width) * 100}%`,
+                      height: `${(cropArea.height / imageSize.height) * 100}%`,
+                    }}
+                    onMouseDown={handleMouseDown}
+                  >
+                    {/* ✅ 8 HANDLES: 4 CANTOS + 4 LATERAIS */}
+                    {/* Top-Left Corner */}
+                    <div
+                      className="absolute -left-2 -top-2 w-4 h-4 bg-green-400 rounded-full cursor-nwse-resize"
+                      onMouseDown={(e) => handleResize('left-top', e)}
+                    />
+                    {/* Top-Right Corner */}
+                    <div
+                      className="absolute -right-2 -top-2 w-4 h-4 bg-green-400 rounded-full cursor-nesw-resize"
+                      onMouseDown={(e) => handleResize('right-top', e)}
+                    />
+                    {/* Bottom-Left Corner */}
+                    <div
+                      className="absolute -left-2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-nesw-resize"
+                      onMouseDown={(e) => handleResize('left-bottom', e)}
+                    />
+                    {/* Bottom-Right Corner */}
+                    <div
+                      className="absolute -right-2 -bottom-2 w-4 h-4 bg-green-400 rounded-full cursor-se-resize"
+                      onMouseDown={(e) => handleResize('right-bottom', e)}
+                    />
+
+                    {/* Top Edge */}
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 -top-2 w-6 h-4 bg-green-400 rounded-full cursor-ns-resize"
+                      onMouseDown={(e) => handleResize('top', e)}
+                    />
+                    {/* Bottom Edge */}
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-6 h-4 bg-green-400 rounded-full cursor-ns-resize"
+                      onMouseDown={(e) => handleResize('bottom', e)}
+                    />
+                    {/* Left Edge */}
+                    <div
+                      className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-green-400 rounded-full cursor-ew-resize"
+                      onMouseDown={(e) => handleResize('left', e)}
+                    />
+                    {/* Right Edge */}
+                    <div
+                      className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-green-400 rounded-full cursor-ew-resize"
+                      onMouseDown={(e) => handleResize('right', e)}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-gray-700">
                 <p className="font-semibold mb-1">📌 Instruções:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>Arraste para mover o retângulo</li>
-                  <li>Puxe os cantos para redimensionar</li>
+                  <li>Use os 8 pontos verdes para redimensionar</li>
                   <li>Selecione apenas a área dos números</li>
                 </ul>
               </div>

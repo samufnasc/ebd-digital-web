@@ -69,6 +69,41 @@ const upscaleImage = (imageData, scale = 2) => {
 };
 
 /**
+ * Extrai números de um texto com fallback zero
+ * Se não conseguir extrair com clareza, retorna 0
+ */
+const extractNumber = (text, pattern, fieldName) => {
+  const match = text.match(pattern);
+  const value = match ? parseInt(match[1]) : null;
+  
+  // ✅ FALLBACK ZERO: Se não encontrar ou valor inválido, retorna 0
+  if (value === null || isNaN(value) || value < 0) {
+    console.log(`OCR - Campo "${fieldName}" não encontrado ou inválido. Usando fallback: 0`);
+    return 0;
+  }
+  
+  console.log(`OCR - Campo "${fieldName}": ${value}`);
+  return value;
+};
+
+/**
+ * Extrai valor monetário com fallback zero
+ */
+const extractCurrency = (text, pattern, fieldName) => {
+  const match = text.match(pattern);
+  const value = match ? parseFloat(match[1].replace(',', '.')) : null;
+  
+  // ✅ FALLBACK ZERO: Se não encontrar ou valor inválido, retorna 0
+  if (value === null || isNaN(value) || value < 0) {
+    console.log(`OCR - Campo "${fieldName}" não encontrado ou inválido. Usando fallback: 0`);
+    return 0;
+  }
+  
+  console.log(`OCR - Campo "${fieldName}": ${value}`);
+  return value;
+};
+
+/**
  * Processa OCR da imagem usando Tesseract.js
  * Otimizado para imagens cortadas com apenas a área dos números
  * @param {string} imageData - Imagem em formato data URL
@@ -104,16 +139,15 @@ export const processOCR = async (imageData, isCropped = true) => {
     // Terminar worker
     await worker.terminate();
 
-    // Extrair números usando regex mais precisa
-    // Busca por padrões: "Pres: 10", "Oferta: 15.50", etc.
-    const presentes = text.match(/[Pp]res(?:entes)?[:\s]+(\d+)/)?.[1] || '10';
-    const ausentes = text.match(/[Aa]us(?:entes)?[:\s]+(\d+)/)?.[1] || '2';
-    const visitantes = text.match(/[Vv]is(?:itantes)?[:\s]+(\d+)/)?.[1] || '0';
-    const biblias = text.match(/[Bb]í?blias?[:\s]+(\d+)/)?.[1] || '9';
-    const revistas = text.match(/[Rr]evistas?[:\s]+(\d+)/)?.[1] || '8';
-    const ofertas = text.match(/[Oo]ferta[s]?[:\s]+(\d+[.,]\d{2})/)?.[1]?.replace(',', '.') || '15.50';
+    // ✅ EXTRAÇÃO COM FALLBACK ZERO
+    const presentes = extractNumber(text, /[Pp]res(?:entes)?[:\s]+(\d+)/, 'Presentes');
+    const ausentes = extractNumber(text, /[Aa]us(?:entes)?[:\s]+(\d+)/, 'Ausentes');
+    const visitantes = extractNumber(text, /[Vv]is(?:itantes)?[:\s]+(\d+)/, 'Visitantes');
+    const biblias = extractNumber(text, /[Bb]í?blias?[:\s]+(\d+)/, 'Bíblias');
+    const revistas = extractNumber(text, /[Rr]evistas?[:\s]+(\d+)/, 'Revistas');
+    const ofertas = extractCurrency(text, /[Oo]ferta[s]?[:\s]+(\d+[.,]\d{2})/, 'Ofertas');
 
-    console.log('OCR - Dados extraídos:', {
+    console.log('OCR - Dados extraídos com sucesso:', {
       presentes,
       ausentes,
       visitantes,
@@ -124,7 +158,7 @@ export const processOCR = async (imageData, isCropped = true) => {
 
     // Estrutura esperada: 5 colunas com dados
     const mockColumns = [
-      { col: 1, present: parseInt(presentes), absent: parseInt(ausentes), visitor: parseInt(visitantes), bibles: parseInt(biblias), magazines: parseInt(revistas), offering: parseFloat(ofertas) },
+      { col: 1, present: presentes, absent: ausentes, visitor: visitantes, bibles: biblias, magazines: revistas, offering: ofertas },
       { col: 2, present: 11, absent: 1, visitor: 1, bibles: 11, magazines: 10, offering: 18.00 },
       { col: 3, present: 9, absent: 3, visitor: 0, bibles: 8, magazines: 7, offering: 12.00 },
       { col: 4, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
@@ -163,22 +197,24 @@ export const processOCR = async (imageData, isCropped = true) => {
   } catch (error) {
     console.error('Erro no OCR:', error);
 
-    // Fallback para dados simulados
+    // ✅ FALLBACK ZERO: Dados simulados com zeros
     const mockData = {
-      present: 10,
-      absent: 2,
+      present: 0,
+      absent: 0,
       visitor: 0,
-      bibles: 9,
-      magazines: 8,
-      offering: 15.50,
+      bibles: 0,
+      magazines: 0,
+      offering: 0,
     };
+
+    console.warn('OCR - Usando fallback com valores zero');
 
     return {
       success: true,
       columns: [
         { col: 1, ...mockData },
-        { col: 2, present: 11, absent: 1, visitor: 1, bibles: 11, magazines: 10, offering: 18.00 },
-        { col: 3, present: 9, absent: 3, visitor: 0, bibles: 8, magazines: 7, offering: 12.00 },
+        { col: 2, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
+        { col: 3, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
         { col: 4, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
         { col: 5, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
       ],

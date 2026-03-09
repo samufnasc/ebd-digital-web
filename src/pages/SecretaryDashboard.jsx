@@ -32,6 +32,40 @@ const formatDateToDatabase = (brazilianDate) => {
   return `${year}-${month}-${day}`;
 };
 
+// ✅ VALIDAÇÃO RIGOROSA DE DADOS
+/**
+ * Valida os dados do formulário contra as regras lógicas
+ * Retorna { isValid: boolean, errors: string[] }
+ */
+const validateFormData = (data, matriculated) => {
+  const errors = [];
+
+  // Regra 1: Presentes ≤ Matriculados
+  if (data.present > matriculated) {
+    errors.push(`❌ Presentes (${data.present}) não pode ser maior que Matriculados (${matriculated})`);
+  }
+
+  // Regra 2: Bíblias ≤ Presentes
+  if (data.bibles > data.present) {
+    errors.push(`❌ Bíblias (${data.bibles}) não pode ser maior que Presentes (${data.present})`);
+  }
+
+  // Regra 3: Revistas ≤ Presentes
+  if (data.magazines > data.present) {
+    errors.push(`❌ Revistas (${data.magazines}) não pode ser maior que Presentes (${data.present})`);
+  }
+
+  // Regra 4: Matriculados = Presentes + Ausentes
+  if (matriculated !== (data.present + data.absent)) {
+    errors.push(`❌ Matriculados (${matriculated}) deve ser igual a Presentes (${data.present}) + Ausentes (${data.absent})`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
   const { classes, saveReport, getAllReports } = useData();
@@ -43,6 +77,7 @@ export default function SecretaryDashboard() {
   const [ocrData, setOcrData] = useState(null);
   const [students, setStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [validationErrors, setValidationErrors] = useState([]);
   const [formData, setFormData] = useState({
     matriculated: 0,
     absent: 0,
@@ -108,11 +143,22 @@ export default function SecretaryDashboard() {
     
     const result = await processOCR(imageData);
     if (result.success) {
-      setOcrData(result.data);
+      // ✅ FALLBACK ZERO: Se OCR não conseguir ler, preencher com 0
+      const ocrDataWithZeroFallback = {
+        present: result.data.present || 0,
+        absent: result.data.absent || 0,
+        visitor: result.data.visitor || 0,
+        bibles: result.data.bibles || 0,
+        magazines: result.data.magazines || 0,
+        offering: result.data.offering || 0,
+      };
+      
+      setOcrData(ocrDataWithZeroFallback);
       setFormData(prev => ({
-        ...result.data,
+        ...ocrDataWithZeroFallback,
         matriculated: prev.matriculated
       }));
+      setValidationErrors([]);
       setShowReview(true);
     }
   };
@@ -128,11 +174,27 @@ export default function SecretaryDashboard() {
       ...prev,
       [field]: numValue
     }));
+    
+    // Validar em tempo real
+    const newFormData = {
+      ...formData,
+      [field]: numValue
+    };
+    const validation = validateFormData(newFormData, formData.matriculated);
+    setValidationErrors(validation.errors);
   };
 
   const handleSaveReport = async () => {
     if (!selectedClass) {
       alert('Selecione uma classe');
+      return;
+    }
+
+    // ✅ VALIDAÇÃO RIGOROSA ANTES DE SALVAR
+    const validation = validateFormData(formData, formData.matriculated);
+    if (!validation.isValid) {
+      alert('Corrija os erros antes de salvar:\n\n' + validation.errors.join('\n'));
+      setValidationErrors(validation.errors);
       return;
     }
 
@@ -143,7 +205,9 @@ export default function SecretaryDashboard() {
 
     const reportData = {
       ...formData,
-      matriculated: officialMatriculatedCount
+      matriculated: officialMatriculatedCount,
+      // ✅ FORÇA DATA EM FORMATO YYYY-MM-DD PARA SUPABASE
+      date: getTodayForDatabase()
     };
 
     saveReport(selectedClass, reportData);
@@ -161,6 +225,7 @@ export default function SecretaryDashboard() {
     });
     setShowReview(false);
     setOcrData(null);
+    setValidationErrors([]);
   };
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
@@ -302,32 +367,27 @@ export default function SecretaryDashboard() {
               <table className="w-full text-sm border-collapse">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Classe</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Mat</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Aus</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Pres</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Vis</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">%</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Bibl</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Rev</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Oferta</th>
+                    <th className="border border-gray-300 px-4 py-2">Classe</th>
+                    <th className="border border-gray-300 px-4 py-2">Mat</th>
+                    <th className="border border-gray-300 px-4 py-2">Aus</th>
+                    <th className="border border-gray-300 px-4 py-2">Pres</th>
+                    <th className="border border-gray-300 px-4 py-2">Vis</th>
+                    <th className="border border-gray-300 px-4 py-2">%</th>
+                    <th className="border border-gray-300 px-4 py-2">Bibl</th>
+                    <th className="border border-gray-300 px-4 py-2">Rev</th>
+                    <th className="border border-gray-300 px-4 py-2">Oferta</th>
                   </tr>
                 </thead>
                 <tbody>
                   {classes.map(cls => {
                     const classReports = getAllReports().filter(r => r.classId === cls.id);
-                    const classData = {
-                      matriculated: classReports.reduce((sum, r) => sum + r.matriculated, 0),
-                      absent: classReports.reduce((sum, r) => sum + r.absent, 0),
-                      present: classReports.reduce((sum, r) => sum + r.present, 0),
-                      visitor: classReports.reduce((sum, r) => sum + r.visitor, 0),
-                      bibles: classReports.reduce((sum, r) => sum + r.bibles, 0),
-                      magazines: classReports.reduce((sum, r) => sum + r.magazines, 0),
-                      offering: classReports.reduce((sum, r) => sum + r.offering, 0),
-                    };
-                    const classPercentage = classData.matriculated > 0
-                      ? Math.round((classData.present / classData.matriculated) * 100)
-                      : 0;
+                    const latestReport = classReports[classReports.length - 1];
+                    
+                    if (!latestReport) return null;
+                    
+                    const classData = latestReport;
+                    const classPercentage = calculatePercentage(classData.present, classData.matriculated);
+                    
                     return (
                       <tr key={cls.id} className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-2 font-medium">{cls.name}</td>
@@ -350,6 +410,18 @@ export default function SecretaryDashboard() {
           /* Review Form */
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-bold mb-6">Revisar Dados OCR</h2>
+
+            {/* ✅ AVISO VISUAL DE VALIDAÇÃO */}
+            {validationErrors.length > 0 && (
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-600 rounded">
+                <h3 className="font-bold text-red-800 mb-2">⚠️ Erros de Validação:</h3>
+                <ul className="space-y-1">
+                  {validationErrors.map((error, idx) => (
+                    <li key={idx} className="text-red-700 text-sm">{error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
@@ -431,26 +503,33 @@ export default function SecretaryDashboard() {
                   type="text"
                   value={totalAssistance}
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-blue-50 text-blue-700 font-semibold"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 font-semibold"
                 />
-                <p className="text-xs text-gray-600 mt-1">Presentes + Visitantes</p>
               </div>
             </div>
 
+            {/* Buttons */}
             <div className="flex gap-3">
               <button
-                onClick={() => setShowReview(false)}
+                onClick={() => {
+                  setShowReview(false);
+                  setValidationErrors([]);
+                }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
                 Cancelar
               </button>
-            <button
-              onClick={handleSaveReport}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold disabled:opacity-50"
-              disabled={loadingStudents}
-            >
-              {loadingStudents ? 'Salvando...' : '✓ Salvar Relatório'}
-            </button>
+              <button
+                onClick={handleSaveReport}
+                className={`flex-1 px-4 py-2 text-white rounded-lg transition font-semibold ${
+                  validationErrors.length > 0
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+                disabled={validationErrors.length > 0}
+              >
+                ✓ Salvar Relatório
+              </button>
             </div>
           </div>
         )}
@@ -467,31 +546,30 @@ export default function SecretaryDashboard() {
       {/* Student List Modal */}
       {showStudentList && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Alunos da Classe</h2>
-              <button
-                onClick={() => setShowStudentList(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">Alunos da Classe</h2>
+            
             {loadingStudents ? (
-              <div className="text-center py-8 text-gray-500">Carregando...</div>
-            ) : students.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">Nenhum aluno nesta classe</div>
-            ) : (
+              <p className="text-gray-600">Carregando alunos...</p>
+            ) : students.length > 0 ? (
               <div className="space-y-2">
-                {students.map((student, index) => (
-                  <div key={student.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-500 font-medium mr-3">{index + 1}.</span>
-                    <span className="font-medium text-gray-900">{student.nome}</span>
+                {students.map((student, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="font-medium text-gray-900">{student.name}</p>
+                    <p className="text-sm text-gray-600">ID: {student.id}</p>
                   </div>
                 ))}
               </div>
+            ) : (
+              <p className="text-gray-600">Nenhum aluno encontrado para esta classe.</p>
             )}
+
+            <button
+              onClick={() => setShowStudentList(false)}
+              className="mt-6 w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}
