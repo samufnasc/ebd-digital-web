@@ -74,6 +74,7 @@ export default function SecretaryDashboard() {
   const [showGeneralReport, setShowGeneralReport] = useState(false);
   const [showStudentList, setShowStudentList] = useState(false);
   const [selectedClass, setSelectedClass] = useState(classes[0]?.id);
+  const [selectedDate, setSelectedDate] = useState(getTodayForDatabase());
   const [ocrData, setOcrData] = useState(null);
   const [students, setStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -204,7 +205,7 @@ export default function SecretaryDashboard() {
     const officialMatriculatedCount = result.success ? result.data.length : formData.matriculated;
 
     // ✅ BLINDAGEM TOTAL DE DATA: Forçar YYYY-MM-DD em TODAS as etapas
-    const dateForDatabase = getTodayForDatabase(); // Garantir formato YYYY-MM-DD
+    const dateForDatabase = selectedDate; // Usar selectedDate (fonte da verdade)
     console.log('SecretaryDashboard - Data para Supabase:', dateForDatabase, '(formato YYYY-MM-DD)');
     console.log('SecretaryDashboard - Data para exibição:', formatDateToBrazilian(dateForDatabase), '(formato DD/MM/YYYY)');
 
@@ -238,8 +239,7 @@ export default function SecretaryDashboard() {
   const totalAssistance = formData.present + formData.visitor;
   
   // ✅ BLINDAGEM DE DATA: Forçar YYYY-MM-DD em TODAS as operações
-  const todayForDatabase = getTodayForDatabase(); // YYYY-MM-DD para Supabase
-  const todayForDisplay = formatDateToBrazilian(todayForDatabase); // DD/MM/YYYY para tela
+  const todayForDisplay = formatDateToBrazilian(selectedDate); // DD/MM/YYYY para tela
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -591,7 +591,6 @@ export default function SecretaryDashboard() {
             </button>
           </div>
         </div>
-      )}
       )}
     </div>
   );

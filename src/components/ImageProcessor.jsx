@@ -216,7 +216,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
     console.log('ImageProcessor - Touch End');
   };
 
-  // ✅ HANDLES EM 8 PONTOS (4 cantos + 4 laterais)
+  // ✅ HANDLES EM 4 PONTOS (apenas cantos para simplicidade)
   const handleResize = (direction, e) => {
     if (!isCropping) return;
     e.preventDefault();
@@ -504,7 +504,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
                     onMouseDown={handleMouseDown}
                     onTouchStart={handleTouchStart}
                   >
-                    {/* ✅ 8 HANDLES: 4 CANTOS + 4 LATERAIS */}
+                    {/* ✅ 4 HANDLES: Apenas cantos para simplicidade */}
                     {/* ✅ Top-Left Corner */}
                     <div
                       className="absolute -left-2 -top-2 w-4 h-4 bg-green-400 rounded-full cursor-nwse-resize"
@@ -529,31 +529,6 @@ export default function ImageProcessor({ onCapture, onClose }) {
                       onMouseDown={(e) => handleResize('right-bottom', e)}
                       onTouchStart={(e) => handleResize('right-bottom', e)}
                     />
-
-                    {/* ✅ Top Edge */}
-                    <div
-                      className="absolute left-1/2 -translate-x-1/2 -top-2 w-6 h-4 bg-green-400 rounded-full cursor-ns-resize"
-                      onMouseDown={(e) => handleResize('top', e)}
-                      onTouchStart={(e) => handleResize('top', e)}
-                    />
-                    {/* ✅ Bottom Edge */}
-                    <div
-                      className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-6 h-4 bg-green-400 rounded-full cursor-ns-resize"
-                      onMouseDown={(e) => handleResize('bottom', e)}
-                      onTouchStart={(e) => handleResize('bottom', e)}
-                    />
-                    {/* ✅ Left Edge */}
-                    <div
-                      className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-green-400 rounded-full cursor-ew-resize"
-                      onMouseDown={(e) => handleResize('left', e)}
-                      onTouchStart={(e) => handleResize('left', e)}
-                    />
-                    {/* ✅ Right Edge */}
-                    <div
-                      className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-green-400 rounded-full cursor-ew-resize"
-                      onMouseDown={(e) => handleResize('right', e)}
-                      onTouchStart={(e) => handleResize('right', e)}
-                    />
                   </div>
                 )}
               </div>
@@ -562,7 +537,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
                 <p className="font-semibold mb-1">📌 Instruções:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>Arraste para mover o retângulo</li>
-                  <li>Use os 8 pontos verdes para redimensionar</li>
+                  <li>Use os 4 pontos verdes nos cantos para redimensionar</li>
                   <li>Selecione apenas a área dos números</li>
                 </ul>
               </div>
