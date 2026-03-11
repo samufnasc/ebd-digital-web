@@ -66,6 +66,17 @@ const validateFormData = (data, matriculated) => {
   };
 };
 
+// ✅ ESTADO INICIAL LIMPO (todos os campos em 0)
+const getCleanFormData = () => ({
+  matriculated: 0,
+  absent: 0,
+  present: 0,
+  visitor: 0,
+  bibles: 0,
+  magazines: 0,
+  offering: 0,
+});
+
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
   const { classes, saveReport, getAllReports } = useData();
@@ -79,20 +90,20 @@ export default function SecretaryDashboard() {
   const [students, setStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
-  const [formData, setFormData] = useState({
-    matriculated: 0,
-    absent: 0,
-    present: 0,
-    visitor: 0,
-    bibles: 0,
-    magazines: 0,
-    offering: 0,
-  });
+  const [formData, setFormData] = useState(getCleanFormData());
 
   // Carregar alunos quando classe mudar
   useEffect(() => {
     loadStudentsForClass();
   }, [selectedClass]);
+
+  // ✅ NOVO: Limpar formulário quando data mudar
+  useEffect(() => {
+    setFormData(getCleanFormData());
+    setOcrData(null);
+    setValidationErrors([]);
+    console.log('SecretaryDashboard - Data alterada para:', selectedDate);
+  }, [selectedDate]);
 
   const loadStudentsForClass = async () => {
     if (!selectedClass) return;
@@ -144,7 +155,7 @@ export default function SecretaryDashboard() {
     
     const result = await processOCR(imageData);
     if (result.success) {
-      // ✅ FALLBACK ZERO: Se OCR não conseguir ler, preencher com 0
+      // ✅ BLINDAGEM: Garantir que todos os campos sejam números válidos (fallback zero)
       const ocrDataWithZeroFallback = {
         present: result.data.present || 0,
         absent: result.data.absent || 0,
@@ -153,6 +164,8 @@ export default function SecretaryDashboard() {
         magazines: result.data.magazines || 0,
         offering: result.data.offering || 0,
       };
+      
+      console.log('SecretaryDashboard - Dados OCR com fallback zero:', ocrDataWithZeroFallback);
       
       setOcrData(ocrDataWithZeroFallback);
       setFormData(prev => ({
@@ -220,16 +233,12 @@ export default function SecretaryDashboard() {
     saveReport(selectedClass, reportData);
     alert('Relatório salvo com sucesso!');
     
-    setFormData({
-      matriculated: officialMatriculatedCount,
-      absent: 0,
-      present: 0,
-      visitor: 0,
-      bibles: 0,
-      magazines: 0,
-      offering: 0,
-      totalAssistance: 0,
-    });
+    // ✅ LIMPEZA: Resetar formulário após salvar
+    setFormData(getCleanFormData());
+    setFormData(prev => ({
+      ...prev,
+      matriculated: officialMatriculatedCount
+    }));
     setShowReview(false);
     setOcrData(null);
     setValidationErrors([]);
@@ -271,7 +280,7 @@ export default function SecretaryDashboard() {
             <p className="text-3xl font-bold text-primary">{classes.length}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600 text-sm">Data</p>
+            <p className="text-gray-600 text-sm">Data Selecionada</p>
             {/* ✅ EXIBIÇÃO: Mostrar data em formato brasileiro DD/MM/YYYY */}
             <p className="text-3xl font-bold text-primary">{todayForDisplay}</p>
           </div>
@@ -282,6 +291,20 @@ export default function SecretaryDashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-bold mb-4">Novo Relatório</h2>
 
+            {/* Date Selection - ✅ NOVO: Seletor de data retroativo */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📅 Data do Relatório
+              </label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">Você pode selecionar datas retroativas</p>
+            </div>
+
             {/* Class Selection */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -289,20 +312,10 @@ export default function SecretaryDashboard() {
               </label>
               <select
                 value={selectedClass}
-                onChange={(e) => {
-                  setSelectedClass(e.target.value);
-                  // ✅ BLINDAGEM: Resetar dados quando classe mudar
-                  setFormData({
-                    matriculated: 0,
-                    absent: 0,
-                    present: 0,
-                    visitor: 0,
-                    bibles: 0,
-                    magazines: 0,
-                    offering: 0,
-                  });
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                onChange={(e) =>
+                  setSelectedClass(e.target.value)
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
               >
                 {classes.map(cls => (
                   <option key={cls.id} value={cls.id}>
@@ -312,140 +325,40 @@ export default function SecretaryDashboard() {
               </select>
             </div>
 
-            {/* Camera Button */}
-            <button
-              onClick={() => setShowCamera(true)}
-              className="fixed right-8 top-1/2 transform -translate-y-1/2 w-16 h-16 bg-primary text-white rounded-full shadow-lg hover:bg-blue-700 transition flex items-center justify-center text-2xl font-bold z-40"
-              title="Novo Relatório"
-            >
-              +
-            </button>
-
             {/* Buttons */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <div className="flex gap-3 flex-wrap">
               <button
                 onClick={() => setShowStudentList(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                className="flex-1 min-w-[150px] px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
                 👨‍🎓 Alunos da Classe
               </button>
               <button
-                onClick={() => setShowGeneralReport(true)}
-                className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+                onClick={() => setShowCamera(true)}
+                className="flex-1 min-w-[150px] px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
               >
-                📄 Relatório Geral
+                ➕ Novo Relatório
               </button>
-            </div>
-
-            {/* Recent Reports */}
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Relatórios Recentes</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Data</th>
-                      <th className="px-4 py-2 text-left">Classe</th>
-                      <th className="px-4 py-2 text-center">Mat</th>
-                      <th className="px-4 py-2 text-center">Pres</th>
-                      <th className="px-4 py-2 text-center">%</th>
-                      <th className="px-4 py-2 text-center">Oferta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getAllReports().slice(-5).reverse().map(report => (
-                      <tr key={report.id} className="border-t hover:bg-gray-50">
-                        {/* ✅ EXIBIÇÃO: Converter data YYYY-MM-DD para DD/MM/YYYY */}
-                        <td className="px-4 py-2">{formatDateToBrazilian(report.date)}</td>
-                        <td className="px-4 py-2">{report.className}</td>
-                        <td className="px-4 py-2 text-center">{report.matriculated}</td>
-                        <td className="px-4 py-2 text-center">{report.present}</td>
-                        <td className="px-4 py-2 text-center font-semibold text-primary">{report.percentage}%</td>
-                        <td className="px-4 py-2 text-center">{formatCurrency(report.offering)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        ) : showGeneralReport ? (
-          /* General Report View */
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">Relatório Geral Consolidado</h2>
-              <button
-                onClick={() => setShowGeneralReport(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                Voltar
-              </button>
-            </div>
-
-            {/* Consolidated Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border border-gray-300 px-4 py-2">Classe</th>
-                    <th className="border border-gray-300 px-4 py-2">Mat</th>
-                    <th className="border border-gray-300 px-4 py-2">Aus</th>
-                    <th className="border border-gray-300 px-4 py-2">Pres</th>
-                    <th className="border border-gray-300 px-4 py-2">Vis</th>
-                    <th className="border border-gray-300 px-4 py-2">%</th>
-                    <th className="border border-gray-300 px-4 py-2">Bibl</th>
-                    <th className="border border-gray-300 px-4 py-2">Rev</th>
-                    <th className="border border-gray-300 px-4 py-2">Oferta</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classes.map(cls => {
-                    const classReports = getAllReports().filter(r => r.classId === cls.id);
-                    const latestReport = classReports[classReports.length - 1];
-                    
-                    if (!latestReport) return null;
-                    
-                    const classData = latestReport;
-                    const classPercentage = calculatePercentage(classData.present, classData.matriculated);
-                    
-                    return (
-                      <tr key={cls.id} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-4 py-2 font-medium">{cls.name}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.matriculated}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center text-red-600">{classData.absent}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center text-green-600 font-semibold">{classData.present}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.visitor}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center font-semibold text-primary">{classPercentage}%</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.bibles}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center">{classData.magazines}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-center font-semibold">{formatCurrency(classData.offering)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           </div>
         ) : (
-          /* Review Form */
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold mb-6">Revisar Dados OCR</h2>
+            <h2 className="text-xl font-bold mb-4">Revisar Dados</h2>
 
-            {/* ✅ AVISO VISUAL DE VALIDAÇÃO */}
+            {/* Validation Errors */}
             {validationErrors.length > 0 && (
-              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-600 rounded">
-                <h3 className="font-bold text-red-800 mb-2">⚠️ Erros de Validação:</h3>
-                <ul className="space-y-1">
-                  {validationErrors.map((error, idx) => (
-                    <li key={idx} className="text-red-700 text-sm">{error}</li>
-                  ))}
-                </ul>
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-700 font-semibold mb-2">⚠️ Erros de Validação:</p>
+                {validationErrors.map((error, idx) => (
+                  <p key={idx} className="text-red-600 text-sm">{error}</p>
+                ))}
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Form Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Matriculados (Automático)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Matriculados</label>
                 <input
                   type="number"
                   value={formData.matriculated}
@@ -454,20 +367,20 @@ export default function SecretaryDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ausentes</label>
-                <input
-                  type="number"
-                  value={formData.absent}
-                  onChange={(e) => handleFormChange('absent', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Presentes</label>
                 <input
                   type="number"
                   value={formData.present}
                   onChange={(e) => handleFormChange('present', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ausentes</label>
+                <input
+                  type="number"
+                  value={formData.absent}
+                  onChange={(e) => handleFormChange('absent', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                 />
               </div>

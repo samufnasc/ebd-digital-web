@@ -139,7 +139,7 @@ export const processOCR = async (imageData, isCropped = true) => {
     // Terminar worker
     await worker.terminate();
 
-    // ✅ EXTRAÇÃO COM FALLBACK ZERO
+    // ✅ EXTRAÇÃO COM FALLBACK ZERO (sem valores pré-fixados)
     const presentes = extractNumber(text, /[Pp]res(?:entes)?[:\s]+(\d+)/, 'Presentes');
     const ausentes = extractNumber(text, /[Aa]us(?:entes)?[:\s]+(\d+)/, 'Ausentes');
     const visitantes = extractNumber(text, /[Vv]is(?:itantes)?[:\s]+(\d+)/, 'Visitantes');
@@ -156,48 +156,22 @@ export const processOCR = async (imageData, isCropped = true) => {
       ofertas
     });
 
-    // Estrutura esperada: 5 colunas com dados
-    const mockColumns = [
-      { col: 1, present: presentes, absent: ausentes, visitor: visitantes, bibles: biblias, magazines: revistas, offering: ofertas },
-      { col: 2, present: 11, absent: 1, visitor: 1, bibles: 11, magazines: 10, offering: 18.00 },
-      { col: 3, present: 9, absent: 3, visitor: 0, bibles: 8, magazines: 7, offering: 12.00 },
-      { col: 4, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
-      { col: 5, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
-    ];
-
-    // Encontrar última coluna preenchida
-    let lastFilledColumn = null;
-    for (let i = mockColumns.length - 1; i >= 0; i--) {
-      if (mockColumns[i].present > 0 || mockColumns[i].absent > 0) {
-        lastFilledColumn = mockColumns[i];
-        break;
-      }
-    }
-
-    // Se nenhuma coluna preenchida, usar primeira
-    if (!lastFilledColumn) {
-      lastFilledColumn = mockColumns[0];
-    }
-
-    console.log('OCR - Coluna selecionada:', lastFilledColumn);
-
+    // ✅ RETORNAR APENAS OS DADOS EXTRAÍDOS (sem valores pré-fixados)
     return {
       success: true,
-      columns: mockColumns,
-      lastFilledColumn,
       data: {
-        present: lastFilledColumn.present,
-        absent: lastFilledColumn.absent,
-        visitor: lastFilledColumn.visitor,
-        bibles: lastFilledColumn.bibles,
-        magazines: lastFilledColumn.magazines,
-        offering: lastFilledColumn.offering,
+        present: presentes,
+        absent: ausentes,
+        visitor: visitantes,
+        bibles: biblias,
+        magazines: revistas,
+        offering: ofertas,
       },
     };
   } catch (error) {
     console.error('Erro no OCR:', error);
 
-    // ✅ FALLBACK ZERO: Dados simulados com zeros
+    // ✅ FALLBACK ZERO: Dados com zeros (sem valores pré-fixados)
     const mockData = {
       present: 0,
       absent: 0,
@@ -211,14 +185,6 @@ export const processOCR = async (imageData, isCropped = true) => {
 
     return {
       success: true,
-      columns: [
-        { col: 1, ...mockData },
-        { col: 2, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
-        { col: 3, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
-        { col: 4, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
-        { col: 5, present: 0, absent: 0, visitor: 0, bibles: 0, magazines: 0, offering: 0 },
-      ],
-      lastFilledColumn: mockData,
       data: mockData,
     };
   }
