@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
  * 
  * Evolução Mobile:
  * - Container retangular (melhor aproveitamento de tela)
- * - Toggle Portrait/Landscape
+ * - Rotação de imagem (não crop)
  * - 6 pontos de ajuste (4 cantos + 2 pontos centrais nas laterais maiores)
  * - requestAnimationFrame para performance
  * - preventDefault em todos os eventos de toque
@@ -25,7 +25,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [mode, setMode] = useState('camera'); // 'camera' ou 'gallery'
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [orientation, setOrientation] = useState('portrait'); // 'portrait' ou 'landscape'
+  const [rotation, setRotation] = useState(0); // ✅ NOVO: Rotação da imagem (0, 90, 180, 270)
   const animationFrameRef = useRef(null); // ✅ Para requestAnimationFrame
 
   // Iniciar câmera
@@ -45,28 +45,31 @@ export default function ImageProcessor({ onCapture, onClose }) {
     if (image && isCropping && cropContainerRef.current) {
       const img = new Image();
       img.onload = () => {
-        // ✅ RETANGULAR: Ajustar dimensões conforme orientação
-        let width, height;
-        if (orientation === 'portrait') {
-          width = img.width * 0.8;
-          height = img.height * 0.6;
-        } else {
-          width = img.width * 0.6;
-          height = img.height * 0.8;
+        // ✅ NOVO: Considerar rotação ao calcular dimensões
+        let imgWidth = img.width;
+        let imgHeight = img.height;
+        
+        // Se rotação é 90 ou 270, inverter dimensões
+        if (rotation === 90 || rotation === 270) {
+          [imgWidth, imgHeight] = [imgHeight, imgWidth];
         }
         
-        // Centralizar
-        const x = (img.width - width) / 2;
-        const y = (img.height - height) / 2;
+        // Calcular dimensões do crop (80% da imagem)
+        const width = imgWidth * 0.8;
+        const height = imgHeight * 0.6;
         
-        setImageSize({ width: img.width, height: img.height });
+        // Centralizar
+        const x = (imgWidth - width) / 2;
+        const y = (imgHeight - height) / 2;
+        
+        setImageSize({ width: imgWidth, height: imgHeight });
         setCropArea({ x, y, width, height });
         
-        console.log('ImageProcessor - Crop inicializado:', { x, y, width, height, orientation });
+        console.log('ImageProcessor - Crop inicializado:', { x, y, width, height, rotation });
       };
       img.src = image;
     }
-  }, [image, isCropping, orientation]);
+  }, [image, isCropping, rotation]);
 
   const startCamera = async () => {
     try {
@@ -92,6 +95,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
       const imageData = canvasRef.current.toDataURL('image/jpeg');
       setImage(imageData);
       setIsCropping(true);
+      setRotation(0); // ✅ NOVO: Resetar rotação ao capturar
       // Parar câmera
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -106,9 +110,17 @@ export default function ImageProcessor({ onCapture, onClose }) {
       reader.onload = (event) => {
         setImage(event.target?.result);
         setIsCropping(true);
+        setRotation(0); // ✅ NOVO: Resetar rotação ao carregar
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // ✅ NOVO: Função para girar a imagem
+  const rotateImage = () => {
+    const newRotation = (rotation + 90) % 360;
+    setRotation(newRotation);
+    console.log('ImageProcessor - Imagem rotacionada para:', newRotation, 'graus');
   };
 
   const handleMouseDown = (e) => {
@@ -336,6 +348,7 @@ export default function ImageProcessor({ onCapture, onClose }) {
     setImage(null);
     setIsCropping(false);
     setCropArea({ x: 0, y: 0, width: 0, height: 0 });
+    setRotation(0); // ✅ NOVO: Resetar rotação
     if (mode === 'camera') {
       startCamera();
     }
@@ -347,9 +360,25 @@ export default function ImageProcessor({ onCapture, onClose }) {
     const img = new Image();
     img.onload = () => {
       const canvas = canvasRef.current;
+      
+      // ✅ NOVO: Considerar rotação ao extrair
+      let drawWidth = img.width;
+      let drawHeight = img.height;
+      
+      // Se rotação é 90 ou 270, inverter dimensões
+      if (rotation === 90 || rotation === 270) {
+        [drawWidth, drawHeight] = [drawHeight, drawWidth];
+      }
+      
       canvas.width = cropArea.width;
       canvas.height = cropArea.height;
       const ctx = canvas.getContext('2d');
+      
+      // ✅ NOVO: Aplicar rotação antes de desenhar
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
       
       ctx.drawImage(
         img,
@@ -363,8 +392,10 @@ export default function ImageProcessor({ onCapture, onClose }) {
         cropArea.height
       );
       
+      ctx.restore();
+      
       const croppedImage = canvas.toDataURL('image/jpeg');
-      console.log('ImageProcessor - Imagem cortada extraída');
+      console.log('ImageProcessor - Imagem cortada extraída com rotação:', rotation);
       onCapture(croppedImage);
     };
     img.src = image;
@@ -484,27 +515,13 @@ export default function ImageProcessor({ onCapture, onClose }) {
                 Ajuste o retângulo para selecionar apenas a área dos números
               </p>
 
-              {/* ✅ NOVO: Toggle Portrait/Landscape */}
+              {/* ✅ NOVO: Botão de Rotação (em vez de toggle portrait/landscape) */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => setOrientation('portrait')}
-                  className={`flex-1 px-4 py-2 rounded-lg transition font-semibold ${
-                    orientation === 'portrait'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  onClick={rotateImage}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold"
                 >
-                  📱 Retrato
-                </button>
-                <button
-                  onClick={() => setOrientation('landscape')}
-                  className={`flex-1 px-4 py-2 rounded-lg transition font-semibold ${
-                    orientation === 'landscape'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  🌄 Paisagem
+                  🔄 Girar {rotation}°
                 </button>
               </div>
 
@@ -526,6 +543,10 @@ export default function ImageProcessor({ onCapture, onClose }) {
                   className="w-full h-full object-cover"
                   onMouseDown={handleMouseDown}
                   onTouchStart={handleTouchStart}
+                  style={{
+                    transform: `rotate(${rotation}deg)`,
+                    transformOrigin: 'center',
+                  }}
                 />
 
                 {/* Overlay escuro */}
@@ -605,10 +626,10 @@ export default function ImageProcessor({ onCapture, onClose }) {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-gray-700">
                 <p className="font-semibold mb-1">📌 Instruções:</p>
                 <ul className="list-disc list-inside space-y-1">
+                  <li>Use o botão 🔄 para girar a imagem</li>
                   <li>Arraste para mover o retângulo</li>
                   <li>Use os 6 pontos verdes para redimensionar</li>
                   <li>Selecione apenas a área dos números</li>
-                  <li>Alterne entre Retrato e Paisagem conforme necessário</li>
                 </ul>
               </div>
 

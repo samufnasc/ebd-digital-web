@@ -79,7 +79,7 @@ const getCleanFormData = () => ({
 
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
-  const { classes, saveReport, getAllReports } = useData();
+  const { classes, saveReport, getAllReports, getReportsByDate } = useData();
   const [showCamera, setShowCamera] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showGeneralReport, setShowGeneralReport] = useState(false);
@@ -230,18 +230,25 @@ export default function SecretaryDashboard() {
 
     console.log('SecretaryDashboard - Dados completos do relatório:', reportData);
 
-    saveReport(selectedClass, reportData);
-    alert('Relatório salvo com sucesso!');
+    const saveResult = await saveReport(selectedClass, reportData);
     
-    // ✅ LIMPEZA: Resetar formulário após salvar
-    setFormData(getCleanFormData());
-    setFormData(prev => ({
-      ...prev,
-      matriculated: officialMatriculatedCount
-    }));
-    setShowReview(false);
-    setOcrData(null);
-    setValidationErrors([]);
+    if (saveResult.success) {
+      alert('Relatório salvo com sucesso!');
+      
+      // ✅ LIMPEZA: Resetar formulário após salvar
+      setFormData(getCleanFormData());
+      setFormData(prev => ({
+        ...prev,
+        matriculated: officialMatriculatedCount
+      }));
+      setShowReview(false);
+      setOcrData(null);
+      setValidationErrors([]);
+      // ✅ NOVO: Forçar re-render para atualizar card de relatórios do dia
+      // Isso garante que o novo relatório apareça imediatamente
+    } else {
+      alert('Erro ao salvar relatório: ' + (saveResult.error || 'Erro desconhecido'));
+    }
   };
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
@@ -287,6 +294,71 @@ export default function SecretaryDashboard() {
         </div>
 
         {/* Main Content */}
+        {/* ✅ NOVO: Card de Relatórios do Dia */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-xl font-bold mb-4">📋 Relatórios do Dia</h2>
+          <p className="text-sm text-gray-600 mb-4">Data: {todayForDisplay}</p>
+          
+          {(() => {
+            const reportsForDay = getReportsByDate(selectedDate);
+            console.log('SecretaryDashboard - Relatórios para data', selectedDate, ':', reportsForDay);
+            
+            if (reportsForDay.length === 0) {
+              return (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">📭 Nenhum relatório cadastrado para esta data</p>
+                </div>
+              );
+            }
+            
+            return (
+              <div className="space-y-4">
+                {reportsForDay.map((report, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Classe</p>
+                        <p className="text-lg font-bold text-gray-900">{report.className}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Matriculados</p>
+                        <p className="text-lg font-bold text-primary">{report.matriculated}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Presentes</p>
+                        <p className="text-lg font-bold text-green-600">{report.present}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Ausentes</p>
+                        <p className="text-lg font-bold text-red-600">{report.absent}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Visitantes</p>
+                        <p className="text-lg font-bold text-blue-600">{report.visitor}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Bíblias</p>
+                        <p className="text-lg font-bold text-purple-600">{report.bibles}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Revistas</p>
+                        <p className="text-lg font-bold text-orange-600">{report.magazines}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold">Ofertas</p>
+                        <p className="text-lg font-bold text-yellow-600">{formatCurrency(report.offering)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">Frequência: <span className="font-bold text-primary">{report.percentage}%</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+
         {!showReview ? (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-bold mb-4">Novo Relatório</h2>
