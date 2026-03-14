@@ -79,7 +79,7 @@ const getCleanFormData = () => ({
 
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
-  const { classes, saveReport, getAllReports, getReportsByDate } = useData();
+  const { classes, saveReport, getAllReports, getReportsByDate, loadReports } = useData();
   const [showCamera, setShowCamera] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showGeneralReport, setShowGeneralReport] = useState(false);
@@ -104,6 +104,12 @@ export default function SecretaryDashboard() {
     setValidationErrors([]);
     console.log('SecretaryDashboard - Data alterada para:', selectedDate);
   }, [selectedDate]);
+
+  // ✅ NOVO: Carregar relatórios quando a página carregar ou data mudar
+  useEffect(() => {
+    console.log('SecretaryDashboard - useEffect: Carregando relatórios para data:', selectedDate);
+    loadReports();
+  }, [selectedDate, loadReports]);
 
   const loadStudentsForClass = async () => {
     if (!selectedClass) return;
@@ -250,6 +256,10 @@ export default function SecretaryDashboard() {
       alert('Erro ao salvar relatório: ' + (saveResult.error || 'Erro desconhecido'));
     }
   };
+
+  // ✅ NOVO: Obter relatórios da data selecionada para exibição em tabela
+  const reportsForDay = getReportsByDate(selectedDate);
+  console.log('SecretaryDashboard - Relatórios para tabela (data:', selectedDate, '):', reportsForDay);
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
   const totalAssistance = formData.present + formData.visitor;
