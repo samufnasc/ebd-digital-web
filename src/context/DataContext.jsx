@@ -133,12 +133,17 @@ export const DataProvider = ({ children }) => {
   const getReportsByDate = (date) => {
     // Garantir que a data está em formato YYYY-MM-DD
     const normalizedDate = typeof date === 'string' ? date : '';
-    console.log('DataContext - Filtrando relatórios pela data:', normalizedDate);
-    return reports.filter(r => r.date === normalizedDate);
+    const filtered = reports.filter(r => r.date === normalizedDate);
+    // ✅ NOVO: Log detalhado para rastrear filtro
+    console.log('DataContext - getReportsByDate:', normalizedDate, '- Encontrados:', filtered.length, 'relatórios');
+    console.log('DataContext - Total de relatórios no estado:', reports.length);
+    return filtered;
   };
 
   // Obter todos os relatórios
   const getAllReports = () => {
+    // ✅ NOVO: Log para rastrear todos os relatórios
+    console.log('DataContext - getAllReports: Total de relatórios:', reports.length);
     return reports;
   };
 

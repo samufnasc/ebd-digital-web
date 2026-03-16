@@ -111,6 +111,12 @@ export default function SecretaryDashboard() {
     loadReports();
   }, [selectedDate, loadReports]);
 
+  // ✅ NOVO: Carregar relatórios quando componente montar (não depender apenas de data)
+  useEffect(() => {
+    console.log('SecretaryDashboard - Componente montado, carregando relatórios iniciais');
+    loadReports();
+  }, []); // Sem dependências = executa apenas uma vez ao montar
+
   const loadStudentsForClass = async () => {
     if (!selectedClass) return;
     
@@ -241,17 +247,20 @@ export default function SecretaryDashboard() {
     if (saveResult.success) {
       alert('Relatório salvo com sucesso!');
       
-      // ✅ LIMPEZA: Resetar formulário após salvar
+      // ✅ LIMPEZA COMPLETA: Resetar tudo para voltar à página inicial
       setFormData(getCleanFormData());
       setFormData(prev => ({
         ...prev,
         matriculated: officialMatriculatedCount
       }));
       setShowReview(false);
+      setShowCamera(false); // ✅ NOVO: Fechar câmera
       setOcrData(null);
       setValidationErrors([]);
-      // ✅ NOVO: Forçar re-render para atualizar card de relatórios do dia
-      // Isso garante que o novo relatório apareça imediatamente
+      // ✅ NOVO: Limpar imagem (importante para não exibir foto anterior)
+      // A imagem é gerenciada no ImageProcessor, então resetamos o estado showCamera
+      
+      console.log('SecretaryDashboard - Relatório salvo! Voltando para página inicial.');
     } else {
       alert('Erro ao salvar relatório: ' + (saveResult.error || 'Erro desconhecido'));
     }
@@ -304,15 +313,11 @@ export default function SecretaryDashboard() {
         </div>
 
         {/* Main Content */}
-        {/* ✅ NOVO: Card de Relatórios do Dia */}
+        {/* ✅ NOVO: Tabela Resumida de Relatórios (Estilo Admin) */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-bold mb-4">📋 Relatórios do Dia</h2>
-          <p className="text-sm text-gray-600 mb-4">Data: {todayForDisplay}</p>
+          <h2 className="text-xl font-bold mb-4">📋 Relatórios do Dia - {todayForDisplay}</h2>
           
           {(() => {
-            const reportsForDay = getReportsByDate(selectedDate);
-            console.log('SecretaryDashboard - Relatórios para data', selectedDate, ':', reportsForDay);
-            
             if (reportsForDay.length === 0) {
               return (
                 <div className="text-center py-8">
@@ -322,51 +327,70 @@ export default function SecretaryDashboard() {
             }
             
             return (
-              <div className="space-y-4">
-                {reportsForDay.map((report, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Classe</p>
-                        <p className="text-lg font-bold text-gray-900">{report.className}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Matriculados</p>
-                        <p className="text-lg font-bold text-primary">{report.matriculated}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Presentes</p>
-                        <p className="text-lg font-bold text-green-600">{report.present}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Ausentes</p>
-                        <p className="text-lg font-bold text-red-600">{report.absent}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Visitantes</p>
-                        <p className="text-lg font-bold text-blue-600">{report.visitor}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Bíblias</p>
-                        <p className="text-lg font-bold text-purple-600">{report.bibles}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Revistas</p>
-                        <p className="text-lg font-bold text-orange-600">{report.magazines}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 font-semibold">Ofertas</p>
-                        <p className="text-lg font-bold text-yellow-600">{formatCurrency(report.offering)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-sm text-gray-600">Frequência: <span className="font-bold text-primary">{report.percentage}%</span></p>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-gray-300 bg-gray-50">
+                      <th className="px-4 py-3 text-left font-bold text-gray-700">Classe</th>
+                      <th className="px-4 py-3 text-center font-bold text-gray-700">Mat.</th>
+                      <th className="px-4 py-3 text-center font-bold text-green-600">Pres.</th>
+                      <th className="px-4 py-3 text-center font-bold text-red-600">Aus.</th>
+                      <th className="px-4 py-3 text-center font-bold text-blue-600">Vis.</th>
+                      <th className="px-4 py-3 text-center font-bold text-purple-600">Bíbl.</th>
+                      <th className="px-4 py-3 text-center font-bold text-orange-600">Rev.</th>
+                      <th className="px-4 py-3 text-center font-bold text-yellow-600">Oferta</th>
+                      <th className="px-4 py-3 text-center font-bold text-primary">Freq.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportsForDay.map((report, idx) => (
+                      <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50 transition">
+                        <td className="px-4 py-3 font-semibold text-gray-900">{report.className}</td>
+                        <td className="px-4 py-3 text-center font-bold text-primary">{report.matriculated}</td>
+                        <td className="px-4 py-3 text-center font-bold text-green-600">{report.present}</td>
+                        <td className="px-4 py-3 text-center font-bold text-red-600">{report.absent}</td>
+                        <td className="px-4 py-3 text-center font-bold text-blue-600">{report.visitor}</td>
+                        <td className="px-4 py-3 text-center font-bold text-purple-600">{report.bibles}</td>
+                        <td className="px-4 py-3 text-center font-bold text-orange-600">{report.magazines}</td>
+                        <td className="px-4 py-3 text-center font-bold text-yellow-600">{formatCurrency(report.offering)}</td>
+                        <td className="px-4 py-3 text-center font-bold text-primary">{report.percentage}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             );
           })()}
+        </div>
+
+        {/* Seletor de Data e Classe */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Seletor de Data */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">📅 Data do Relatório</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            
+            {/* Seletor de Classe */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">👨‍🎓 Classe</label>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {classes.map(cls => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {!showReview ? (
