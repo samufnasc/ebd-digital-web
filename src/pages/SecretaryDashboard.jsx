@@ -111,12 +111,13 @@ export default function SecretaryDashboard() {
     loadReports();
   }, [selectedDate, loadReports]);
 
-  // ✅ NOVO: Carregar relatórios quando componente montar (não depender apenas de data)
+  // ✅ NOVO: Carregar relatórios quando componente montar (primeira coisa, sem condições)
   useEffect(() => {
-    console.log('SecretaryDashboard - Componente montado, carregando relatórios iniciais');
-    console.log('SecretaryDashboard - isLoaded:', isLoaded, '| loading:', loading);
+    console.log('SecretaryDashboard - MOUNT: Componente montado, carregando relatórios iniciais');
+    // ✅ GARANTIA DE MOUNT: loadReports() é a PRIMEIRA coisa a ser executada
     loadReports();
-  }, []); // Sem dependências = executa apenas uma vez ao montar
+    console.log('SecretaryDashboard - MOUNT: loadReports() disparado com sucesso');
+  }, []); // Sem dependências = executa ao montar uma vez ao montar
 
   const loadStudentsForClass = async () => {
     if (!selectedClass) return;
@@ -267,9 +268,23 @@ export default function SecretaryDashboard() {
     }
   };
 
-  // ✅ NOVO: Obter relatórios da data selecionada para exibição em tabela
-  const reportsForDay = getReportsByDate(selectedDate);
-  console.log('SecretaryDashboard - Relatórios para tabela (data:', selectedDate, '):', reportsForDay);
+  // ✅ NOVO: Obter TODOS os relatórios e filtrar manualmente (lógica de sucesso do Admin)
+  const allReports = getAllReports();
+  const reportsForDay = allReports.filter(r => r.date === selectedDate);
+  // ✅ LOG DE AUDITORIA PARA SAMUEL: Mostrar exatamente o que está acontecendo
+  console.log('SecretaryDashboard - LOG DE AUDITORIA:');
+  console.log('  - isLoaded:', isLoaded, '| loading:', loading);
+  console.log('  - Total de relatórios no estado:', allReports.length);
+  console.log('  - selectedDate (YYYY-MM-DD):', selectedDate);
+  console.log('  - Datas disponíveis no banco:', allReports.map(r => r.date).filter((v, i, a) => a.indexOf(v) === i).sort());
+  console.log('  - Relatórios para a data selecionada:', reportsForDay.length);
+  console.log('  - Relatórios completos:', reportsForDay);
+  
+  // ✅ NOVO: Verificar fuso horário - garantir que selectedDate está em YYYY-MM-DD
+  console.log('SecretaryDashboard - Verificação de fuso horário:');
+  console.log('  - selectedDate (YYYY-MM-DD):', selectedDate);
+  console.log('  - getTodayForDatabase():', getTodayForDatabase());
+  console.log('  - Formato para exibição (DD/MM/YYYY):', formatDateToBrazilian(selectedDate));
 
   const percentage = calculatePercentage(formData.present, formData.matriculated);
   const totalAssistance = formData.present + formData.visitor;
@@ -376,7 +391,7 @@ export default function SecretaryDashboard() {
 
         {/* Seletor de Data e Classe */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Seletor de Data */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">📅 Data do Relatório</label>
@@ -386,6 +401,19 @@ export default function SecretaryDashboard() {
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               />
+            </div>
+            
+            {/* ✅ NOVO: Botão de Atualização Manual */}
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  console.log('SecretaryDashboard - Botão Atualizar clicado');
+                  loadReports();
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
+              >
+                <span>🔄</span> Atualizar
+              </button>
             </div>
             
             {/* Seletor de Classe */}
