@@ -79,7 +79,7 @@ const getCleanFormData = () => ({
 
 export default function SecretaryDashboard() {
   const { logout, user } = useAuth();
-  const { classes, saveReport, getAllReports, getReportsByDate, loadReports } = useData();
+  const { classes, saveReport, getAllReports, getReportsByDate, loadReports, isLoaded, loading } = useData();
   const [showCamera, setShowCamera] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showGeneralReport, setShowGeneralReport] = useState(false);
@@ -114,6 +114,7 @@ export default function SecretaryDashboard() {
   // ✅ NOVO: Carregar relatórios quando componente montar (não depender apenas de data)
   useEffect(() => {
     console.log('SecretaryDashboard - Componente montado, carregando relatórios iniciais');
+    console.log('SecretaryDashboard - isLoaded:', isLoaded, '| loading:', loading);
     loadReports();
   }, []); // Sem dependências = executa apenas uma vez ao montar
 
@@ -295,6 +296,16 @@ export default function SecretaryDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* ✅ NOVO: Spinner de Carregamento */}
+        {!isLoaded && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              <p className="text-blue-700 font-semibold">Sincronizando dados...</p>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
