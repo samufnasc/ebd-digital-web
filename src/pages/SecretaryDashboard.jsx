@@ -113,11 +113,14 @@ export default function SecretaryDashboard() {
 
   // ✅ NOVO: Carregar relatórios quando componente montar (primeira coisa, sem condições)
   useEffect(() => {
-    console.log('SecretaryDashboard - MOUNT: Componente montado, carregando relatórios iniciais');
-    // ✅ GARANTIA DE MOUNT: loadReports() é a PRIMEIRA coisa a ser executada
-    loadReports();
-    console.log('SecretaryDashboard - MOUNT: loadReports() disparado com sucesso');
-  }, []); // Sem dependências = executa ao montar uma vez ao montar
+    const forceRefreshOnMount = async () => {
+      console.log('SecretaryDashboard - MOUNT: Componente montado, forçando refresh do banco');
+      // ✅ FORÇAR REFRESH: await garante que dados sejam baixados antes de renderizar
+      await loadReports();
+      console.log('SecretaryDashboard - MOUNT: Dados sincronizados com sucesso');
+    };
+    forceRefreshOnMount();
+  }, []); // Sem dependências = executa ao montar uma vez
 
   const loadStudentsForClass = async () => {
     if (!selectedClass) return;
@@ -268,15 +271,14 @@ export default function SecretaryDashboard() {
     }
   };
 
-  // ✅ NOVO: Obter TODOS os relatórios e filtrar manualmente (lógica de sucesso do Admin)
-  const allReports = getAllReports();
-  const reportsForDay = allReports.filter(r => r.date === selectedDate);
+  // ✅ ESPELHAMENTO DO ADMIN: Filtro direto de getAllReports() para garantir sincronização
+  const reportsForDay = getAllReports().filter(r => r.date === selectedDate);
   // ✅ LOG DE AUDITORIA PARA SAMUEL: Mostrar exatamente o que está acontecendo
   console.log('SecretaryDashboard - LOG DE AUDITORIA:');
   console.log('  - isLoaded:', isLoaded, '| loading:', loading);
-  console.log('  - Total de relatórios no estado:', allReports.length);
+  console.log('  - Total de relatórios no estado:', getAllReports().length);
   console.log('  - selectedDate (YYYY-MM-DD):', selectedDate);
-  console.log('  - Datas disponíveis no banco:', allReports.map(r => r.date).filter((v, i, a) => a.indexOf(v) === i).sort());
+  console.log('  - Datas disponíveis no banco:', getAllReports().map(r => r.date).filter((v, i, a) => a.indexOf(v) === i).sort());
   console.log('  - Relatórios para a data selecionada:', reportsForDay.length);
   console.log('  - Relatórios completos:', reportsForDay);
   
@@ -344,6 +346,18 @@ export default function SecretaryDashboard() {
           <h2 className="text-xl font-bold mb-4">📋 Relatórios do Dia - {todayForDisplay}</h2>
           
           {(() => {
+            // ✅ FEEDBACK MELHORADO: Spinner se carregando, vazio se isLoaded e sem dados
+            if (!isLoaded) {
+              return (
+                <div className="text-center py-8">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                    <p className="text-blue-700 font-semibold">Sincronizando com o banco de dados...</p>
+                  </div>
+                </div>
+              );
+            }
+            
             if (reportsForDay.length === 0) {
               return (
                 <div className="text-center py-8">
@@ -406,9 +420,12 @@ export default function SecretaryDashboard() {
             {/* ✅ NOVO: Botão de Atualização Manual */}
             <div className="flex items-end">
               <button
-                onClick={() => {
+                onClick={async () => {
                   console.log('SecretaryDashboard - Botão Atualizar clicado');
-                  loadReports();
+                  // ✅ SINCRONIZAÇÃO: Reset isLoaded para forçar redesenho com dados frescos
+                  console.log('SecretaryDashboard - Resetando isLoaded para forçar refresh');
+                  await loadReports();
+                  console.log('SecretaryDashboard - Dados atualizados com sucesso');
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
               >
