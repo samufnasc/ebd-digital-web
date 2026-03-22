@@ -272,7 +272,22 @@ export default function SecretaryDashboard() {
   };
 
   // ✅ ESPELHAMENTO DO ADMIN: Filtro direto de getAllReports() para garantir sincronização
-  const reportsForDay = getAllReports().filter(r => r.date === selectedDate);
+  // ✅ FASE 7.0: FILTRO DE UNICIDADE - Exibir apenas o último relatório por classe
+  const allReportsForDay = getAllReports().filter(r => r.date === selectedDate);
+  
+  // Agrupar por classe e pegar apenas o último (mais recente)
+  const reportsForDay = Object.values(
+    allReportsForDay.reduce((acc, report) => {
+      const classKey = report.classe || report.className;
+      // Manter apenas o último relatório por classe (ID mais alto = mais recente)
+      if (!acc[classKey] || report.id > acc[classKey].id) {
+        acc[classKey] = report;
+      }
+      return acc;
+    }, {})
+  );
+  
+  console.log('SecretaryDashboard - Filtro de Unicidade: Total antes:', allReportsForDay.length, '| Após:', reportsForDay.length);
   // ✅ LOG DE AUDITORIA PARA SAMUEL: Mostrar exatamente o que está acontecendo
   console.log('SecretaryDashboard - LOG DE AUDITORIA:');
   console.log('  - isLoaded:', isLoaded, '| loading:', loading);

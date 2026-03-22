@@ -86,63 +86,6 @@ export const authFunctions = {
   },
 };
 
-// ============ RELATÓRIOS ============
-export const reportFunctions = {
-  saveReport: async (data) => {
-    try {
-      const { data: result, error } = await supabase
-        .from('relatorios_ebd')
-        .insert([{
-          data_aula: data.date,
-          classe: data.className,
-          matriculados: Number(data.matriculated),
-          ausentes: Number(data.absent),
-          presentes: Number(data.present),
-          visitantes: Number(data.visitor),
-          biblias: Number(data.bibles),
-          revistas: Number(data.magazines),
-          ofertas: Number(data.offering),
-        }]);
-      
-      if (error) throw error;
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('Erro ao salvar relatório:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  getReportsByDate: async (date) => {
-    try {
-      const { data, error } = await supabase
-        .from('relatorios_ebd')
-        .select('*')
-        .eq('data_aula', date);
-      
-      if (error) throw error;
-      return { success: true, data: data || [] };
-    } catch (error) {
-      console.error('Erro ao buscar relatórios:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-  },
-
-  deleteReportsByDate: async (date) => {
-    try {
-      const { error } = await supabase
-        .from('relatorios_ebd')
-        .delete()
-        .eq('data_aula', date);
-      
-      if (error) throw error;
-      return { success: true };
-    } catch (error) {
-      console.error('Erro ao deletar relatórios:', error);
-      return { success: false, error: error.message };
-    }
-  },
-};
-
 // ============ ALUNOS ============
 export const studentFunctions = {
   // Obter alunos por classe
@@ -199,7 +142,7 @@ export const studentFunctions = {
       
       return { success: true, data: data || [] };
     } catch (error) {
-      console.error('Erro ao buscar todos os alunos:', error);
+      console.error('Erro ao buscar alunos:', error);
       return { success: false, error: error.message, data: [] };
     }
   },
@@ -211,28 +154,12 @@ export const studentFunctions = {
         .from('alunos')
         .insert([{ nome, classe }])
         .select();
-      
+
       if (error) throw error;
-      return { success: true, data: data?.[0] };
+
+      return { success: true, data };
     } catch (error) {
       console.error('Erro ao adicionar aluno:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Atualizar aluno
-  async updateStudent(id, nome, classe) {
-    try {
-      const { data, error } = await supabase
-        .from('alunos')
-        .update({ nome, classe })
-        .eq('id', id)
-        .select();
-      
-      if (error) throw error;
-      return { success: true, data: data?.[0] };
-    } catch (error) {
-      console.error('Erro ao atualizar aluno:', error);
       return { success: false, error: error.message };
     }
   },
@@ -244,7 +171,7 @@ export const studentFunctions = {
         .from('alunos')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
       return { success: true };
     } catch (error) {
@@ -255,3 +182,113 @@ export const studentFunctions = {
 };
 
 
+// ============ RELATÓRIOS ============
+export const reportFunctions = {
+  // ✅ FASE 7.0: LÓGICA DE UPSERT (Atualizar se existe, Criar se não)
+  saveReport: async (data) => {
+    try {
+      console.log('saveReport - Iniciando lógica de Upsert para:', data.className, 'em', data.date);
+      
+      // ✅ PASSO 1: Verificar se já existe relatório para esta classe + data
+      const { data: existingReports, error: checkError } = await supabase
+        .from('relatorios_ebd')
+        .select('id')
+        .eq('data_aula', data.date)
+        .eq('classe', data.className);
+      
+      if (checkError) throw checkError;
+      
+      const reportData = {
+        data_aula: data.date,
+        classe: data.className,
+        matriculados: Number(data.matriculated),
+        ausentes: Number(data.absent),
+        presentes: Number(data.present),
+        visitantes: Number(data.visitor),
+        biblias: Number(data.bibles),
+        revistas: Number(data.magazines),
+        ofertas: Number(data.offering),
+      };
+      
+      let result;
+      
+      if (existingReports && existingReports.length > 0) {
+        // ✅ ATUALIZAR: Já existe relatório para esta classe + data
+        console.log('saveReport - Atualizando relatório existente (ID:', existingReports[0].id, ')');
+        const { data: updateResult, error: updateError } = await supabase
+          .from('relatorios_ebd')
+          .update(reportData)
+          .eq('id', existingReports[0].id)
+          .select();
+        
+        if (updateError) throw updateError;
+        result = updateResult;
+        console.log('saveReport - Relatório atualizado com sucesso');
+      } else {
+        // ✅ CRIAR: Não existe relatório para esta classe + data
+        console.log('saveReport - Criando novo relatório');
+        const { data: insertResult, error: insertError } = await supabase
+          .from('relatorios_ebd')
+          .insert([reportData])
+          .select();
+        
+        if (insertError) throw insertError;
+        result = insertResult;
+        console.log('saveReport - Novo relatório criado com sucesso');
+      }
+      
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Erro ao salvar relatório:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  getReportsByDate: async (date) => {
+    try {
+      const { data, error } = await supabase
+        .from('relatorios_ebd')
+        .select('*')
+        .eq('data_aula', date);
+      
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Erro ao buscar relatórios:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+  },
+
+  getAllReports: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('relatorios_ebd')
+        .select('*')
+        .order('data_aula', { ascending: false })
+        .order('classe', { ascending: true });
+      
+      if (error) throw error;
+      
+      console.log('getAllReports - Total de relatórios:', data?.length || 0);
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Erro ao buscar todos os relatórios:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+  },
+
+  deleteReportsByDate: async (date) => {
+    try {
+      const { error } = await supabase
+        .from('relatorios_ebd')
+        .delete()
+        .eq('data_aula', date);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao deletar relatórios:', error);
+      return { success: false, error: error.message };
+    }
+  },
+};
