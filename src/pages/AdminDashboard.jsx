@@ -75,7 +75,26 @@ export default function AdminDashboard() {
     loadReports(selectedDate);
   }, [selectedDate, loadReports]);
 
+  // ✅ FASE 8.0: useEffect dedicado para recalcular mês/ano quando selectedDate muda
+  // Isso garante que a barra inferior (Mensal) seja re-executada sempre que a data mudar
+  useEffect(() => {
+    const dateObj = new Date(selectedDate + 'T00:00:00');
+    const month = dateObj.getMonth() + 1;
+    const year = dateObj.getFullYear();
+    
+    console.log('✅ AdminDashboard - Atualizando mês/ano baseado em selectedDate:');
+    console.log('  - selectedDate:', selectedDate);
+    console.log('  - Novo mês:', month, '| Novo ano:', year);
+    
+    setSelectedMonth(month);
+    setSelectedYear(year);
+  }, [selectedDate]);
+
   const reports = getAllReports();
+  
+  // ✅ LOG DE AUDITORIA: Verificar se relatórios estão sendo carregados
+  console.log('✅ AdminDashboard - Relatórios carregados:', reports.length, 'total');
+  console.log('  - Datas disponíveis:', [...new Set(reports.map(r => r.date))].sort());
 
   // Consolidar dados apenas da data selecionada
   const consolidatedData = {
@@ -124,26 +143,42 @@ export default function AdminDashboard() {
     }
   });
 
-  // ✅ FASE 8.0: CÁLCULO INTELIGENTE - Média Aritmética de Frequência
+  // ✅ FASE 8.0: CÁLCULO INTELIGENTE - Média Aritmética de Frequência com BLINDAGEM DE TIPOS
   // Calcular a porcentagem de cada classe e depois fazer a média
   const frequencyPercentages = reportsForDate.map(report => {
     const classMatriculados = Number(report.matriculated) || totalStudents;
-    return classMatriculados > 0 
-      ? (Number(report.present) / classMatriculados) * 100 
-      : 0;
+    const present = Number(report.present) || 0;
+    
+    // ✅ BLINDAGEM: Validar que classMatriculados é um número válido
+    if (!Number.isFinite(classMatriculados) || classMatriculados <= 0) {
+      return 0;
+    }
+    
+    const percentage = (present / classMatriculados) * 100;
+    // ✅ BLINDAGEM: Garantir que o resultado é um número válido
+    return Number.isFinite(percentage) ? percentage : 0;
   });
   
   const averageFrequency = frequencyPercentages.length > 0
     ? Math.round(frequencyPercentages.reduce((a, b) => a + b, 0) / frequencyPercentages.length)
     : 0;
 
+  // ✅ BLINDAGEM: Validar que averageFrequency é um número válido
+  const safeAverageFrequency = Number.isFinite(averageFrequency) ? averageFrequency : 0;
+
   // Usar total de alunos do banco em vez de matriculados do relatório
+  const consolidatedPresent = Number(consolidatedData.present) || 0;
   const percentage = totalStudents > 0
-    ? Math.round((consolidatedData.present / totalStudents) * 100)
+    ? Math.round((consolidatedPresent / totalStudents) * 100)
     : 0;
   
+  // ✅ BLINDAGEM: Validar que percentage é um número válido
+  const safePercentage = Number.isFinite(percentage) ? percentage : 0;
+  
   // Total de assistência = Presentes + Visitantes
-  const totalAssistance = Number(consolidatedData.present) + Number(consolidatedData.visitor);
+  const consolidatedVisitor = Number(consolidatedData.visitor) || 0;
+  const totalAssistance = consolidatedPresent + consolidatedVisitor;
+  const safeTotalAssistance = Number.isFinite(totalAssistance) ? totalAssistance : 0;
 
   // ✅ FASE 8.0: CÁLCULOS MENSAIS INTELIGENTES
   // Filtrar relatórios do mês selecionado
@@ -153,31 +188,60 @@ export default function AdminDashboard() {
     const reportMonth = r.date.substring(0, 7); // YYYY-MM
     return reportMonth === monthKey;
   });
-
-  // Calcular MÉDIA DE FREQUÊNCIA MENSAL
-  const monthlyFrequencyPercentages = reportsForMonth.map(report => {
-    const classMatriculados = Number(report.matriculated) || totalStudents;
-    return classMatriculados > 0 
-      ? (Number(report.present) / classMatriculados) * 100 
-      : 0;
-  });
   
-  const monthlyAverageFrequency = monthlyFrequencyPercentages.length > 0
-    ? Math.round(monthlyFrequencyPercentages.reduce((a, b) => a + b, 0) / monthlyFrequencyPercentages.length)
-    : 0;
+  console.log('✅ AdminDashboard - Filtro Mensal:');
+  console.log('  - monthKey:', monthKey);
+  console.log('  - Total de relatórios no mês:', reportsForMonth.length);
+  console.log('  - Relatórios do mês:', reportsForMonth.map(r => r.date).sort());
 
-  // MÉDIA DE FALTAS MENSAIS = 100% - Média Frequência
-  const monthlyAverageFaltas = 100 - monthlyAverageFrequency;
+  // ✅ FASE 8.0: Calcular MÉDIA DE FREQUÊNCIA MENSAL com blindagem de tipos
+  let monthlyFrequencyPercentages = [];
+  let monthlyAverageFrequency = 0;
+  let monthlyAverageFaltas = 0;
+  let monthlyTotalOffering = 0;
+  let monthlyTotalVisitors = 0;
 
-  // TOTAL DE ENTRADAS (R$) = Soma de ofertas do mês
-  const monthlyTotalOffering = reportsForMonth.reduce((sum, report) => 
-    sum + (Number(report.offering) || 0), 0
-  );
+  try {
+    if (Array.isArray(reportsForMonth) && reportsForMonth.length > 0) {
+      monthlyFrequencyPercentages = reportsForMonth.map(report => {
+        const classMatriculados = Number(report.matriculated) || totalStudents;
+        return classMatriculados > 0 
+          ? (Number(report.present) / classMatriculados) * 100 
+          : 0;
+      });
+      
+      monthlyAverageFrequency = monthlyFrequencyPercentages.length > 0
+        ? Math.round(monthlyFrequencyPercentages.reduce((a, b) => a + b, 0) / monthlyFrequencyPercentages.length)
+        : 0;
 
-  // TOTAL DE VISITANTES = Soma de visitantes do mês
-  const monthlyTotalVisitors = reportsForMonth.reduce((sum, report) => 
-    sum + (Number(report.visitor) || 0), 0
-  );
+      // MÉDIA DE FALTAS MENSAIS = 100% - Média Frequência
+      monthlyAverageFaltas = 100 - monthlyAverageFrequency;
+
+      // TOTAL DE ENTRADAS (R$) = Soma de ofertas do mês
+      monthlyTotalOffering = reportsForMonth.reduce((sum, report) => {
+        const offering = Number(report.offering) || 0;
+        return sum + (Number.isFinite(offering) ? offering : 0);
+      }, 0);
+
+      // TOTAL DE VISITANTES = Soma de visitantes do mês
+      monthlyTotalVisitors = reportsForMonth.reduce((sum, report) => {
+        const visitor = Number(report.visitor) || 0;
+        return sum + (Number.isFinite(visitor) ? visitor : 0);
+      }, 0);
+    }
+  } catch (error) {
+    console.error('❌ ERRO ao calcular métricas mensais:', error);
+    monthlyAverageFrequency = 0;
+    monthlyAverageFaltas = 0;
+    monthlyTotalOffering = 0;
+    monthlyTotalVisitors = 0;
+  }
+
+  console.log('✅ AdminDashboard - Métricas Mensais Calculadas:');
+  console.log('  - Média Frequência:', monthlyAverageFrequency, '%');
+  console.log('  - Média Faltas:', monthlyAverageFaltas, '%');
+  console.log('  - Total Ofertas (R$):', monthlyTotalOffering);
+  console.log('  - Total Visitantes:', monthlyTotalVisitors);
 
   const handleExportPDF = (type = 'general') => {
     generatePDF(consolidatedData, reportsByClass, selectedDate, type, { selectedClasses });

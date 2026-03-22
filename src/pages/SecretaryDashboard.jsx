@@ -309,6 +309,57 @@ export default function SecretaryDashboard() {
   // ✅ BLINDAGEM DE DATA: Forçar YYYY-MM-DD em TODAS as operações
   const todayForDisplay = formatDateToBrazilian(selectedDate); // DD/MM/YYYY para tela
 
+  // ✅ FASE 8.0: CÁLCULO ROBUSTO DE CONSOLIDADO COM TRATAMENTO DE NULOS
+  let consolidatedData = {
+    matriculated: 0,
+    present: 0,
+    absent: 0,
+    offering: 0,
+    visitor: 0
+  };
+
+  try {
+    if (Array.isArray(reportsForDay) && reportsForDay.length > 0) {
+      consolidatedData = reportsForDay.reduce((acc, report) => {
+        // ✅ BLINDAGEM: Converter para número, padrão 0 se nulo/NaN
+        const matriculated = Number(report.matriculated) || 0;
+        const present = Number(report.present) || 0;
+        const absent = Number(report.absent) || 0;
+        const offering = Number(report.offering) || 0;
+        const visitor = Number(report.visitor) || 0;
+
+        return {
+          matriculated: acc.matriculated + matriculated,
+          present: acc.present + present,
+          absent: acc.absent + absent,
+          offering: acc.offering + offering,
+          visitor: acc.visitor + visitor
+        };
+      }, {
+        matriculated: 0,
+        present: 0,
+        absent: 0,
+        offering: 0,
+        visitor: 0
+      });
+    }
+  } catch (error) {
+    console.error('❌ ERRO ao calcular consolidatedData:', error);
+    console.error('reportsForDay:', reportsForDay);
+    // Manter valores padrão (0) em caso de erro
+  }
+
+  // ✅ VALIDAÇÃO FINAL: Garantir que todos os valores são números válidos
+  const safeConsolidatedData = {
+    matriculated: Number.isFinite(consolidatedData.matriculated) ? consolidatedData.matriculated : 0,
+    present: Number.isFinite(consolidatedData.present) ? consolidatedData.present : 0,
+    absent: Number.isFinite(consolidatedData.absent) ? consolidatedData.absent : 0,
+    offering: Number.isFinite(consolidatedData.offering) ? consolidatedData.offering : 0,
+    visitor: Number.isFinite(consolidatedData.visitor) ? consolidatedData.visitor : 0
+  };
+
+  console.log('✅ Consolidado do Dia (SEGURO):', safeConsolidatedData);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -650,19 +701,19 @@ export default function SecretaryDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div>
               <p className="text-sm text-gray-600">Total Matriculados</p>
-              <p className="text-2xl font-bold text-primary">{consolidatedData.matriculated}</p>
+              <p className="text-2xl font-bold text-primary">{safeConsolidatedData.matriculated}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Presenças</p>
-              <p className="text-2xl font-bold text-green-600">{consolidatedData.present}</p>
+              <p className="text-2xl font-bold text-green-600">{safeConsolidatedData.present}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Ausências</p>
-              <p className="text-2xl font-bold text-red-600">{consolidatedData.absent}</p>
+              <p className="text-2xl font-bold text-red-600">{safeConsolidatedData.absent}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Ofertas</p>
-              <p className="text-2xl font-bold text-blue-600">{formatCurrency(consolidatedData.offering)}</p>
+              <p className="text-2xl font-bold text-blue-600">{formatCurrency(safeConsolidatedData.offering)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">% Geral</p>
