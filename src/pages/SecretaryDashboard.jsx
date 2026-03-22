@@ -643,6 +643,33 @@ export default function SecretaryDashboard() {
             </div>
           </div>
         )}
+
+        {/* ✅ FASE 8.0: BARRA DE RESUMO INFERIOR - Consolidado do Dia */}
+        <div className="bg-primary/10 rounded-lg p-4 border border-primary mt-8 mb-8">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">📊 Consolidado do Dia - {formatDateToBrazilian(selectedDate)}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Total Matriculados</p>
+              <p className="text-2xl font-bold text-primary">{consolidatedData.matriculated}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Presenças</p>
+              <p className="text-2xl font-bold text-green-600">{consolidatedData.present}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Ausências</p>
+              <p className="text-2xl font-bold text-red-600">{consolidatedData.absent}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Ofertas</p>
+              <p className="text-2xl font-bold text-blue-600">{formatCurrency(consolidatedData.offering)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">% Geral</p>
+              <p className="text-2xl font-bold text-primary">{percentage}%</p>
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Image Processor Modal (Camera + Gallery + Crop) */}

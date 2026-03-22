@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../utils/ocr';
@@ -124,6 +124,19 @@ export default function AdminDashboard() {
     }
   });
 
+  // ✅ FASE 8.0: CÁLCULO INTELIGENTE - Média Aritmética de Frequência
+  // Calcular a porcentagem de cada classe e depois fazer a média
+  const frequencyPercentages = reportsForDate.map(report => {
+    const classMatriculados = Number(report.matriculated) || totalStudents;
+    return classMatriculados > 0 
+      ? (Number(report.present) / classMatriculados) * 100 
+      : 0;
+  });
+  
+  const averageFrequency = frequencyPercentages.length > 0
+    ? Math.round(frequencyPercentages.reduce((a, b) => a + b, 0) / frequencyPercentages.length)
+    : 0;
+
   // Usar total de alunos do banco em vez de matriculados do relatório
   const percentage = totalStudents > 0
     ? Math.round((consolidatedData.present / totalStudents) * 100)
@@ -131,6 +144,40 @@ export default function AdminDashboard() {
   
   // Total de assistência = Presentes + Visitantes
   const totalAssistance = Number(consolidatedData.present) + Number(consolidatedData.visitor);
+
+  // ✅ FASE 8.0: CÁLCULOS MENSAIS INTELIGENTES
+  // Filtrar relatórios do mês selecionado
+  const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const reportsForMonth = reports.filter(r => {
+    if (!r.date) return false;
+    const reportMonth = r.date.substring(0, 7); // YYYY-MM
+    return reportMonth === monthKey;
+  });
+
+  // Calcular MÉDIA DE FREQUÊNCIA MENSAL
+  const monthlyFrequencyPercentages = reportsForMonth.map(report => {
+    const classMatriculados = Number(report.matriculated) || totalStudents;
+    return classMatriculados > 0 
+      ? (Number(report.present) / classMatriculados) * 100 
+      : 0;
+  });
+  
+  const monthlyAverageFrequency = monthlyFrequencyPercentages.length > 0
+    ? Math.round(monthlyFrequencyPercentages.reduce((a, b) => a + b, 0) / monthlyFrequencyPercentages.length)
+    : 0;
+
+  // MÉDIA DE FALTAS MENSAIS = 100% - Média Frequência
+  const monthlyAverageFaltas = 100 - monthlyAverageFrequency;
+
+  // TOTAL DE ENTRADAS (R$) = Soma de ofertas do mês
+  const monthlyTotalOffering = reportsForMonth.reduce((sum, report) => 
+    sum + (Number(report.offering) || 0), 0
+  );
+
+  // TOTAL DE VISITANTES = Soma de visitantes do mês
+  const monthlyTotalVisitors = reportsForMonth.reduce((sum, report) => 
+    sum + (Number(report.visitor) || 0), 0
+  );
 
   const handleExportPDF = (type = 'general') => {
     generatePDF(consolidatedData, reportsByClass, selectedDate, type, { selectedClasses });
@@ -226,7 +273,7 @@ export default function AdminDashboard() {
           <p className="text-sm text-gray-600 mt-1">Data selecionada: {formatDateToBrazilian(selectedDate)}</p>
         </div>
 
-        {/* Summary Cards */}
+        {/* ✅ FASE 8.0: BARRA SUPERIOR - Dados do Dia Selecionado com Média de Frequência */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-gray-600 text-xs">Total de Alunos</p>
@@ -245,8 +292,8 @@ export default function AdminDashboard() {
             <p className="text-2xl font-bold text-blue-600">{totalAssistance}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-gray-600 text-xs">Frequência</p>
-            <p className="text-2xl font-bold text-primary">{percentage}%</p>
+            <p className="text-gray-600 text-xs">Frequência Geral</p>
+            <p className="text-2xl font-bold text-primary">{averageFrequency}%</p>
           </div>
         </div>
 
@@ -316,24 +363,24 @@ export default function AdminDashboard() {
             </table>
           </div>
 
-          {/* Totals Row */}
+          {/* ✅ FASE 8.0: BARRA INFERIOR - Estatísticas Mensais Inteligentes */}
           <div className="bg-primary/10 rounded-lg p-4 border border-primary">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-gray-600">Total Matriculados</p>
-                <p className="text-2xl font-bold text-primary">{consolidatedData.matriculated}</p>
+                <p className="text-sm text-gray-600">Média Frequência Mensal</p>
+                <p className="text-2xl font-bold text-primary">{monthlyAverageFrequency}%</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total Presentes</p>
-                <p className="text-2xl font-bold text-green-600">{consolidatedData.present}</p>
+                <p className="text-sm text-gray-600">Média Faltas Mensais</p>
+                <p className="text-2xl font-bold text-red-600">{monthlyAverageFaltas}%</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total Bíblias</p>
-                <p className="text-2xl font-bold text-primary">{consolidatedData.bibles}</p>
+                <p className="text-sm text-gray-600">Total das Entradas (R$)</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyTotalOffering)}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total Ofertas</p>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(consolidatedData.offering)}</p>
+                <p className="text-sm text-gray-600">Total de Visitantes</p>
+                <p className="text-2xl font-bold text-blue-600">{monthlyTotalVisitors}</p>
               </div>
             </div>
           </div>
@@ -410,47 +457,49 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowMonthlyReport(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleExportMonthlyPDF}
-                className="flex-1 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
-              >
-                📊 Gerar PDF
-              </button>
+              {/* Buttons */}
+              <div className="flex gap-2 pt-4">
+                <button
+                  onClick={handleExportMonthlyPDF}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                  📄 Gerar PDF
+                </button>
+                <button
+                  onClick={() => setShowMonthlyReport(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* PDF Options Modal */}
+      {/* PDF Export Options Modal */}
       {showPDFOptions && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-6">Selecione o Tipo de Relatório</h2>
+            <h2 className="text-2xl font-bold mb-6">Exportar PDF</h2>
+            
             <div className="space-y-3">
               <button
                 onClick={() => handleExportPDF('general')}
                 className="w-full px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-left"
               >
-                📊 Relatório Geral (Consolidado)
+                📄 Relatório Geral do Dia
               </button>
               <button
-                onClick={() => handleExportPDF('byClass')}
+                onClick={() => handleExportPDF('class')}
                 className="w-full px-4 py-3 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold text-left"
               >
-                📑 Relatórios por Classe (Páginas Individuais)
+                📋 Relatório por Classe
               </button>
               <button
                 onClick={() => setShowPDFOptions(false)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                className="w-full px-4 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold"
               >
                 Cancelar
               </button>
