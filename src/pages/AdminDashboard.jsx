@@ -48,6 +48,8 @@ export default function AdminDashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedClasses, setSelectedClasses] = useState(classes.map(c => c.id));
   const [selectAllClasses, setSelectAllClasses] = useState(true);
+  // ✅ FASE 8.0.2: Toggle de visão (Dia vs Mês)
+  const [viewMode, setViewMode] = useState('day'); // 'day' ou 'month'
 
   // Carregar total de alunos do banco - apenas o data.length real
   useEffect(() => {
@@ -427,27 +429,78 @@ export default function AdminDashboard() {
             </table>
           </div>
 
-          {/* ✅ FASE 8.0: BARRA INFERIOR - Estatísticas Mensais Inteligentes */}
-          <div className="bg-primary/10 rounded-lg p-4 border border-primary">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Média Frequência Mensal</p>
-                <p className="text-2xl font-bold text-primary">{monthlyAverageFrequency}%</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Média Faltas Mensais</p>
-                <p className="text-2xl font-bold text-red-600">{monthlyAverageFaltas}%</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total das Entradas (R$)</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyTotalOffering)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total de Visitantes</p>
-                <p className="text-2xl font-bold text-blue-600">{monthlyTotalVisitors}</p>
+          {/* ✅ FASE 8.0.2: TOGGLE DE VISÃO - Dia vs Mês */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setViewMode('day')}
+              className={`px-6 py-2 rounded-lg font-semibold transition ${
+                viewMode === 'day'
+                  ? 'bg-primary text-white shadow-lg'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              📅 Ver Dados do Dia
+            </button>
+            <button
+              onClick={() => setViewMode('month')}
+              className={`px-6 py-2 rounded-lg font-semibold transition ${
+                viewMode === 'month'
+                  ? 'bg-primary text-white shadow-lg'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              📈 Ver Dados do Mês
+            </button>
+          </div>
+
+          {/* ✅ FASE 8.0.2: BARRA INFERIOR - Exibir dados baseado em viewMode */}
+          {viewMode === 'day' ? (
+            // MODO DIA: Exibir dados do dia selecionado
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-300">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Dados do Dia - {formatDateToBrazilian(selectedDate)}</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Total Matriculados</p>
+                  <p className="text-2xl font-bold text-primary">{totalStudents}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Presentes</p>
+                  <p className="text-2xl font-bold text-green-600">{consolidatedData.present}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Ausências</p>
+                  <p className="text-2xl font-bold text-red-600">{consolidatedData.absent}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Frequência Geral</p>
+                  <p className="text-2xl font-bold text-primary">{averageFrequency}%</p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            // MODO MÊS: Exibir dados mensais
+            <div className="bg-primary/10 rounded-lg p-4 border border-primary">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Dados do Mês - {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][selectedMonth - 1]}/{selectedYear}</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Média Frequência Mensal</p>
+                  <p className="text-2xl font-bold text-primary">{monthlyAverageFrequency}%</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Média Faltas Mensais</p>
+                  <p className="text-2xl font-bold text-red-600">{monthlyAverageFaltas}%</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total das Entradas (R$)</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyTotalOffering)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total de Visitantes</p>
+                  <p className="text-2xl font-bold text-blue-600">{monthlyTotalVisitors}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 

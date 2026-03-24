@@ -303,7 +303,27 @@ export default function SecretaryDashboard() {
   console.log('  - getTodayForDatabase():', getTodayForDatabase());
   console.log('  - Formato para exibição (DD/MM/YYYY):', formatDateToBrazilian(selectedDate));
 
-  const percentage = calculatePercentage(formData.present, formData.matriculated);
+  // ✅ FASE 8.0.2: CÁLCULO CORRETO DE % GERAL - Média Aritmética dos Relatórios do Dia
+  let percentage = 0;
+  try {
+    if (Array.isArray(reportsForDay) && reportsForDay.length > 0) {
+      // Calcular porcentagem de cada relatório
+      const dayPercentages = reportsForDay.map(report => {
+        const matriculated = Number(report.matriculated) || 0;
+        const present = Number(report.present) || 0;
+        return matriculated > 0 ? (present / matriculated) * 100 : 0;
+      });
+      
+      // Média aritmética das porcentagens
+      percentage = dayPercentages.length > 0
+        ? Math.round(dayPercentages.reduce((a, b) => a + b, 0) / dayPercentages.length)
+        : 0;
+    }
+  } catch (error) {
+    console.error('❌ ERRO ao calcular % Geral do dia:', error);
+    percentage = 0;
+  }
+  
   const totalAssistance = formData.present + formData.visitor;
   
   // ✅ BLINDAGEM DE DATA: Forçar YYYY-MM-DD em TODAS as operações
@@ -392,8 +412,9 @@ export default function SecretaryDashboard() {
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600 text-sm">Total de Relatórios</p>
-            <p className="text-3xl font-bold text-primary">{getAllReports().length}</p>
+            <p className="text-gray-600 text-sm">Relatórios Hoje</p>
+            {/* ✅ FASE 8.0.2: Exibir apenas quantidade de relatórios do dia selecionado */}
+            <p className="text-3xl font-bold text-primary">{reportsForDay.length}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <p className="text-gray-600 text-sm">Classes</p>
