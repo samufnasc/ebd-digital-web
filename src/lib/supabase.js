@@ -92,7 +92,7 @@ export const studentFunctions = {
   async getStudentsByClass(className) {
     try {
       const { data, error } = await supabase
-        .from('alunos')
+        .from('alunos_ebd')
         .select('*')
         .eq('classe', className)
         .order('nome', { ascending: true });
@@ -109,7 +109,7 @@ export const studentFunctions = {
   async countStudentsByClass(className) {
     try {
       const { data, error, count } = await supabase
-        .from('alunos')
+        .from('alunos_ebd')
         .select('*', { count: 'exact', head: true })
         .eq('classe', className);
       
@@ -125,7 +125,7 @@ export const studentFunctions = {
   async getAllStudents() {
     try {
       const { data, error } = await supabase
-        .from('alunos')
+        .from('alunos_ebd')
         .select('*')
         .order('classe', { ascending: true })
         .order('nome', { ascending: true });
@@ -151,7 +151,7 @@ export const studentFunctions = {
   async addStudent(nome, classe) {
     try {
       const { data, error } = await supabase
-        .from('alunos')
+        .from('alunos_ebd')
         .insert([{ nome, classe }])
         .select();
 
@@ -168,7 +168,7 @@ export const studentFunctions = {
   async deleteStudent(id) {
     try {
       const { error } = await supabase
-        .from('alunos')
+        .from('alunos_ebd')
         .delete()
         .eq('id', id);
 
