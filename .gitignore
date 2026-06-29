@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python venv e caches
+ebd_pdf_service/venv/
+ebd_pdf_service/.venv/
+**/__pycache__/
+*.pyc
