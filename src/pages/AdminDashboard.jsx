@@ -603,23 +603,65 @@ export default function AdminDashboard() {
             
             <div className="space-y-3">
               <button
+                onClick={async () => {
+                  try {
+                    // Pega o mês selecionado no input da tela (formato YYYY-MM, ex: "2026-02")
+                    if (!selectedMonth) {
+                      alert("Por favor, selecione um mês primeiro na tela principal.");
+                      return;
+                    }
+
+                    // Dicionário para converter o número do mês para extenso
+                    const mesesExtenso = {
+                      "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
+                      "05": "Maio", "06": "Junho", "07": "Julho", "08": "Agosto",
+                      "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro"
+                    };
+
+                    const [ano, mes] = selectedMonth.split('-');
+                    const nomeMes = mesesExtenso[mes] || "Geral";
+                    const mesAnoExtenso = `${nomeMes} / ${ano}`; // Ex: "Fevereiro / 2026"
+
+                    // Dispara o fluxo completo
+                    await gerarRelatorioMensalCompleto("Sede Local", selectedMonth, mesAnoExtenso);
+                    setShowPDFOptions(false); // Fecha o modal após o download
+                  } catch (err) {
+                    alert(`Erro ao gerar Relatório Mensal: ${err.message}`);
+                  }
+                }}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-left flex items-center gap-2\"
+              >
+              </button>
+                📄 Relatório Geral do Dia
+              
+              <button
+                onClick={() => handleExportPDF('class')}
+                className="w-full px-4 py-3 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold text-left"
+              >
+                📋 Relatório Mensal Oficial (Python PDF)
+              </button>
+              <button
                 onClick={() => handleExportPDF('general')}
                 className="w-full px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold text-left"
               >
-                📄 Relatório Geral do Dia
+                Documento - Relatório Geral do Dia
               </button>
+              
               <button
                 onClick={() => handleExportPDF('class')}
                 className="w-full px-4 py-3 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold text-left"
               >
                 📋 Relatório por Classe
               </button>
+              
               <button
                 onClick={() => setShowPDFOptions(false)}
-                className="w-full px-4 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold"
+                className="w-full px-4 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold\"
               >
                 Cancelar
               </button>
+
+
             </div>
           </div>
         </div>
