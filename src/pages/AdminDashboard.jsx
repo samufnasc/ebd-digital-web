@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../utils/ocr';
 import { generatePDF } from '../utils/pdf';
+import { gerarRelatorioMensalCompleto } from '../services/pdfService';
 import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
@@ -43,6 +44,7 @@ export default function AdminDashboard() {
   const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
+  const [congregacaoNome, setCongregacaoNome] = useState('Sede Local');
   const [totalStudents, setTotalStudents] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -250,13 +252,26 @@ export default function AdminDashboard() {
     setShowPDFOptions(false);
   };
 
-  const handleExportMonthlyPDF = () => {
-    generatePDF(consolidatedData, reportsByClass, selectedDate, 'monthly', {
-      month: selectedMonth,
-      year: selectedYear,
-      selectedClasses: selectAllClasses ? null : selectedClasses
-    });
-    setShowMonthlyReport(false);
+  const handleExportMonthlyPDF = async () => {
+    try {
+      // 1. Formatar o mês e ano para o backend (YYYY-MM)
+      const mesAno = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+
+      // 2. Formatar o mês para o PDF (Nome / Ano)
+      const mesesExtenso = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const mesAnoExtenso = `${mesesExtenso[selectedMonth - 1]} / ${selectedYear}`;
+
+      // 3. Disparar o serviço (que busca no Supabase e envia ao Python)
+      await gerarRelatorioMensalCompleto(congregacaoNome, mesAno, mesAnoExtenso);
+
+      setShowMonthlyReport(false);
+    } catch (err) {
+      console.error("Erro ao gerar relatório mensal:", err);
+      alert(`Erro ao gerar Relatório Mensal: ${err.message}`);
+    }
   };
 
   const toggleClassSelection = (classId) => {
@@ -521,6 +536,18 @@ export default function AdminDashboard() {
             <h2 className="text-2xl font-bold mb-6">Relatório Geral Mensal</h2>
             
             <div className="space-y-4">
+              {/* Seleção de Congregação */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nome da Congregação</label>
+                <input
+                  type="text"
+                  value={congregacaoNome}
+                  onChange={(e) => setCongregacaoNome(e.target.value)}
+                  placeholder="Ex: Mensageiros da Fé"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+
               {/* Seleção de Mês */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Mês</label>

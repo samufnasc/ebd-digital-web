@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+CONVERSATION_CONTEXT.md
 
 # Editor directories and files
 .vscode/*

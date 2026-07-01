@@ -45,9 +45,16 @@ export async function gerarRelatorioMensalCompleto(
 
     // 2. Transforma e mapeia os dados para o formato exigido pelo seu Backend Python (Mantendo a lógica exata de agrupamento)
     // Agrupa os registros por data para montar o array de dias com suas respectivas classes
+    // 2. Transforma e agrupa os dados por data para montar o array de dias (BLINDADO CONTRA CAMPOS NULOS)
     const agrupadoPorData: { [data: string]: any[] } = {};
     
     relatoriosBanco.forEach((registro: any) => {
+      // 🌟 PROTEÇÃO: Verifica se 'data_aula' existe e é uma string antes de fazer o split
+      if (!registro || !registro.data_aula || typeof registro.data_aula !== 'string') {
+        console.warn("Aviso: Registro ignorado por não conter uma data_aula válida:", registro);
+        return; // Pula para o próximo registro sem quebrar o código
+      }
+
       const dataBr = registro.data_aula.split('-').reverse().join('/');
       if (!agrupadoPorData[dataBr]) {
         agrupadoPorData[dataBr] = [];
