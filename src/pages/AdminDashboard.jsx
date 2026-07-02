@@ -44,6 +44,7 @@ export default function AdminDashboard() {
   const [showStudentManagement, setShowStudentManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [congregacaoNome, setCongregacaoNome] = useState('Sede Local');
   const [totalStudents, setTotalStudents] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -253,6 +254,7 @@ export default function AdminDashboard() {
   };
 
   const handleExportMonthlyPDF = async () => {
+    setIsGeneratingPDF(true);
     try {
       // 1. Formatar o mês e ano para o backend (YYYY-MM)
       const mesAno = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
@@ -271,6 +273,8 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Erro ao gerar relatório mensal:", err);
       alert(`Erro ao gerar Relatório Mensal: ${err.message}`);
+    } finally {
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -606,9 +610,9 @@ export default function AdminDashboard() {
               <div className="flex gap-2 pt-4">
                 <button
                   onClick={handleExportMonthlyPDF}
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${isGeneratingPDF ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary text-white hover:bg-blue-700'}`}
                 >
-                  📄 Gerar PDF
+                  {isGeneratingPDF ? '⌛ Gerando...' : '📄 Gerar PDF'}
                 </button>
                 <button
                   onClick={() => setShowMonthlyReport(false)}

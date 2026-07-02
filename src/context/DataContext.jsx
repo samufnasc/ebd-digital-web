@@ -76,7 +76,8 @@ export const DataProvider = ({ children }) => {
     } catch (err) {
       console.error('DataContext - Erro ao carregar relatórios:', err);
       setError(err.message);
-      console.warn('DataContext - Mantendo relatórios em cache devido ao erro');
+      setReports([]); // 🛡️ BLINDAGEM: Garante que reports nunca seja undefined em caso de erro
+      console.warn('DataContext - Mantendo relatórios vazios devido ao erro');
     } finally {
       setLoading(false);
       setIsLoaded(true);
