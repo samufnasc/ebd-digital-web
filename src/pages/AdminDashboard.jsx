@@ -259,6 +259,24 @@ export default function AdminDashboard() {
     setShowMonthlyReport(false);
   };
 
+  const handleExportMonthlyPDFWithCharts = () => {
+    // Filtrar relatórios do mês selecionado
+    const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    const reportsForMonth = reports.filter(r => {
+      if (!r.date) return false;
+      const reportMonth = r.date.substring(0, 7); // YYYY-MM
+      return reportMonth === monthKey;
+    });
+
+    generatePDF(consolidatedData, reportsByClass, selectedDate, 'monthlyWithCharts', {
+      month: selectedMonth,
+      year: selectedYear,
+      selectedClasses: selectAllClasses ? null : selectedClasses,
+      allReports: reportsForMonth
+    });
+    setShowMonthlyReport(false);
+  };
+
   const toggleClassSelection = (classId) => {
     setSelectedClasses(prev => {
       const newSelected = prev.includes(classId)
@@ -576,16 +594,22 @@ export default function AdminDashboard() {
               </div>
 
               {/* Buttons */}
-              <div className="flex gap-2 pt-4">
+              <div className="flex gap-2 pt-4 flex-col">
                 <button
                   onClick={handleExportMonthlyPDF}
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                  className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold"
                 >
-                  📄 Gerar PDF
+                  📄 Gerar PDF Simples
+                </button>
+                <button
+                  onClick={handleExportMonthlyPDFWithCharts}
+                  className="w-full px-4 py-2 bg-secondary text-white rounded-lg hover:bg-yellow-600 transition font-semibold"
+                >
+                  📊 Gerar PDF com Gráficos
                 </button>
                 <button
                   onClick={() => setShowMonthlyReport(false)}
-                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold"
+                  className="w-full px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-semibold"
                 >
                   Cancelar
                 </button>
