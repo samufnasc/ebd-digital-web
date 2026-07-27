@@ -1,4 +1,4 @@
-  import React, { useState, useEffect } from 'eact';
+  import React, { useState, useEffect } from 'react';
   import { studentFunctions } from '../lib/supabase';
   import { useData } from '../context/DataContext';
 
