@@ -1,12 +1,12 @@
-import { supabase } from '../lib/supabase'; // Mantém o caminho correto ajustado
+import { supabase } from '../lib/supabase';
 
-// Definição das interfaces para tipagem segura (TypeScript) - IDÊNTICAS
 interface LinhaClasse {
   classe: string;
   matriculados: number;
   ausentes: number;
   presentes: number;
   oferta: number;
+  visitantes?: number;
   biblias?: number;
   revistas?: number;
 }
@@ -27,15 +27,20 @@ interface RelatorioPayload {
  */
 export async function gerarRelatorioMensalCompleto(
   congregacao: string,
-  mesAno: string, // formato usado no filtro do banco (ex: "2026-02")
-  mesAnoExtenso: string // formato para o PDF (ex: "Fevereiro / 2026")
+  mesAno: string,        // formato "2026-02"
+  mesAnoExtenso: string  // formato "Fevereiro / 2026"
 ) {
   try {
-    // 1. Busca os dados diretamente da tabela unificada 'relatorios_ebd' do seu banco
+    // 1. Filtro correto para coluna do tipo DATE (não usar .like)
+    //    Pega do dia 01 até o último dia possível do mês
+    const inicioMes = `${mesAno}-01`;
+    const fimMes = `${mesAno}-31`; // Postgres aceita e descarta dias inválidos (ex: 31/02)
+
     const { data: relatoriosBanco, error: errorBanco } = await supabase
-      .from('relatorios_ebd') 
+      .from('relatorios_ebd')
       .select('*')
-      .like('data_aula', `${mesAno}%`) // Ex: "2026-02%" busca todos os domingos
+      .gte('data_aula', inicioMes)
+      .lte('data_aula', fimMes)
       .order('data_aula', { ascending: true });
 
     if (errorBanco) throw errorBanco;
@@ -43,83 +48,88 @@ export async function gerarRelatorioMensalCompleto(
       throw new Error(`Nenhum dado encontrado no Supabase para o período: ${mesAnoExtenso}`);
     }
 
-    // 2. Transforma e mapeia os dados para o formato exigido pelo seu Backend Python (Mantendo a lógica exata de agrupamento)
-    // Agrupa os registros por data para montar o array de dias com suas respectivas classes
-    // 2. Transforma e agrupa os dados por data para montar o array de dias (BLINDADO CONTRA CAMPOS NULOS)
+    // 2. Agrupa por data (BLINDADO contra nulos)
     const agrupadoPorData: { [data: string]: any[] } = {};
-    
+
     relatoriosBanco.forEach((registro: any) => {
-      // 🌟 PROTEÇÃO: Verifica se 'data_aula' existe e é uma string antes de fazer o split
-      if (!registro || !registro.data_aula || typeof registro.data_aula !== 'string') {
-        console.warn("Aviso: Registro ignorado por não conter uma data_aula válida:", registro);
-        return; // Pula para o próximo registro sem quebrar o código
+      if (!registro?.data_aula) {
+        console.warn('Registro ignorado (sem data_aula):', registro);
+        return;
       }
 
-      const dataBr = registro.data_aula.split('-').reverse().join('/');
+      // Supabase pode devolver date como string "YYYY-MM-DD"
+      const dataStr = String(registro.data_aula).substring(0, 10);
+      const [ano, mes, dia] = dataStr.split('-');
+      const dataBr = `${dia}/${mes}/${ano}`;
+
       if (!agrupadoPorData[dataBr]) {
         agrupadoPorData[dataBr] = [];
       }
       agrupadoPorData[dataBr].push(registro);
     });
 
-    // Agora converte para a estrutura DiaPayload original desejada
-    const diasFormatados: DiaPayload[] = Object.keys(agrupadoPorData).map((dataBr) => {
-      return {
+    // 3. Monta o payload no formato exigido pelo api.py
+    const diasFormatados: DiaPayload[] = Object.keys(agrupadoPorData)
+      .sort((a, b) => {
+        // Ordena cronologicamente (DD/MM/YYYY)
+        const [da, ma, aa] = a.split('/').map(Number);
+        const [db, mb, ab] = b.split('/').map(Number);
+        return new Date(aa, ma - 1, da).getTime() - new Date(ab, mb - 1, db).getTime();
+      })
+      .map((dataBr) => ({
         data: dataBr,
         classes: agrupadoPorData[dataBr].map((item: any) => ({
-          classe: item.classe, // "Adonai", "Geração Eleita", etc.
-          matriculados: Number(item.matriculados || 0),
-          ausentes: Number(item.ausentes || 0),
-          presentes: Number(item.presentes || 0),
-          oferta: parseFloat(item.oferta || 0),
-          biblias: Number(item.biblia || 0),  // Mapeamento correto da coluna 'biblia'
-          revistas: Number(item.revista || 0) // Mapeamento correto da coluna 'revista'
-        }))
-      };
-    });
+          classe: item.classe ?? '',
+          matriculados: Number(item.matriculados ?? 0),
+          ausentes: Number(item.ausentes ?? 0),
+          presentes: Number(item.presentes ?? 0),
+          oferta: parseFloat(item.ofertas ?? 0),      // ← coluna real: ofertas
+          visitantes: Number(item.visitantes ?? 0),
+          biblias: Number(item.biblias ?? 0),         // ← coluna real: biblias
+          revistas: Number(item.revistas ?? 0),       // ← coluna real: revistas
+        })),
+      }));
 
-    // Monta o payload final idêntico ao exigido pelo api.py
     const payload: RelatorioPayload = {
-      congregacao: congregacao,
+      congregacao,
       referencia_mes: mesAnoExtenso,
-      dias: diasFormatados
+      dias: diasFormatados,
     };
 
-    // Força o TypeScript a aceitar a propriedade .env injetada pelo Vite
-const API_BASE_URL = (import.meta as any).env?.VITE_API_PDF_URL || "http://localhost:5000";
-    
+    console.log('Payload enviado para API de PDF:', payload);
+
+    // 4. Chama a API Python
+    const API_BASE_URL =
+      (import.meta as any).env?.VITE_API_PDF_URL || 'http://localhost:5000';
+
     const resposta = await fetch(`${API_BASE_URL}/api/relatorio-mensal/pdf`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
 
     if (!resposta.ok) {
       const errData = await resposta.json().catch(() => ({}));
-      throw new Error(errData.erro || "Falha na comunicação com o servidor de PDF.");
+      throw new Error(errData.erro || `Falha na comunicação com o servidor de PDF (${resposta.status})`);
     }
 
-    // 4. Recebe o arquivo binário (Blob) e inicia o download automático - IDÊNTICO
+    // 5. Download automático
     const blob = await resposta.blob();
     const url = window.URL.createObjectURL(blob);
-    
-    const link = document.createElement("a");
+
+    const link = document.createElement('a');
     link.href = url;
-    const nomeArquivo = `Relatorio_Mensal_${mesAnoExtenso.replace(/\s/g, "").replace("/", "-")}.pdf`;
+    const nomeArquivo = `Relatorio_Mensal_${mesAnoExtenso.replace(/\s/g, '').replace('/', '-')}.pdf`;
     link.download = nomeArquivo;
-    
+
     document.body.appendChild(link);
     link.click();
-    
-    // Limpeza de memória - IDÊNTICA
     link.remove();
     window.URL.revokeObjectURL(url);
 
     return { success: true };
   } catch (error: any) {
-    console.error("Erro no fluxo do PDF:", error);
+    console.error('Erro no fluxo do PDF:', error);
     throw error;
   }
 }
