@@ -138,30 +138,59 @@ export const studentFunctions = {
     }
   },
 
-  // Adicionar aluno
-  async addStudent(nome, classe) {
-    try {
-      const { data, error } = await supabase
-        .from('alunos_ebd')
-        .insert([{ nome, classe }])
-        .select();
+  // Adicionar aluno com suporte a vínculo histórico
+    async addStudent(nome, classe, month = null, year = null) {
+      try {
+        // 1. Salvar o aluno e garantir que ele existe (upsert por nome)
+        const { data: aluno, error: alunoError } = await supabase
+          from('alunos_ebd')
+          upsert({ nome, classe }, { onConflict: 'nome' })
+          select()
+          single();
 
-      if (error) throw error;
-      return { success: true, data };
-    } catch (error) {
-      console.error('Erro ao adicionar aluno:', error);
-      return { success: false, error: error.message };
-    }
-  },
+        if (alunoError) throw alunoError;
+
+        // 2. Se fornecido mês e ano, criar o vínculo na tabela de histórico
+        if (month && year) {
+          // BUSCA O ID DA CLASSE A PARTIR DO NOME
+          const { data: classeData, error: classeError } = await supabase
+            from('equipes') // Nome da sua tabela de classes/equipes
+            select('id')
+            eq('nome', classe)
+            single();
+
+          if (classeError) {
+            console.warn('Aviso: Não foi possível encontrar o ID da classe para o histórico:', classeError.message);
+          } else if (classeData?.id) {
+            // Criar o vínculo na tabela de histórico
+            const { error: vinculoError } = await supabase
+              from('aluno_vinculo_mensal')
+              insert([{
+                aluno_id: aluno.id,
+                classe_id: classeData.id, // Agora usamos o UUID, não o texto!
+                mes_referencia: month,
+                ano_referencia: year
+              }]);
+
+            if (vinculoError) console.warn('Aviso: Erro ao criar vínculo mensal:', vinculoError);
+          }
+        }
+
+        return { success: true, data: aluno };
+      } catch (error) {
+        console.error('Erro ao adicionar aluno:', error);
+        return { success: false, error: error.message };
+      }
+    },
 
   // ✅ FUNÇÃO QUE FALTAVA PARA O ADMIN:
-  async updateStudent(id, nome, classe) {
+  async updateStudent(id, nome, classe, month = null, year = null) {
     try {
       const { data, error } = await supabase
-        .from('alunos_ebd')
-        .update({ nome, classe })
-        .eq('id', id)
-        .select();
+        from('alunos_ebd')
+        update({ nome, classe })
+        eq('id', id)
+        select();
 
       if (error) throw error;
       return { success: true, data };
