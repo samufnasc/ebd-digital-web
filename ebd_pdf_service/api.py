@@ -67,7 +67,17 @@ app = Flask(__name__)
 
 # Libera CORS para o site React poder chamar esta API de outro domínio/porta.
 # Em produção, troque "*" pela URL exata do site (ex: https://ebd-digital-web.vercel.app)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Libera CORS apenas para os domínios do Vercel + localhost (desenvolvimento)
+CORS(app, resources={
+    "/api/*": {
+        "origins": [
+            "https://ebd-digital-web.vercel.app",
+            "https://ebd-digital-1rxr4r8ws-samuel-nasc.vercel.app",
+            "http://localhost:5173",
+            "http://localhost:3000",
+        ]
+    }
+})
 
 
 def _parse_payload(body: dict) -> DadosRelatorioMensal:

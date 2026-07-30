@@ -1,19 +1,24 @@
-  import React, { useState, useEffect } from 'react';
-  import { studentFunctions } from '../lib/supabase';
-  import { useData } from '../context/DataContext';
+import React, { useState, useEffect } from 'react';
+import { studentFunctions } from '../lib/supabase';
+import { useData } from '../context/DataContext';
 
-  export default function StudentManagement({ onClose }) {
-    const { classes } = useData();
-    const [students, setStudents] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [selectedClass, setSelectedClass] = useState(classes[0]?.name || '');
-    const [showForm, setShowForm] = useState(false);
-    const [editingId, setEditingId] = useState(null);
+export default function StudentManagement({ onClose }) {
+  const { classes } = useData();
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedClass, setSelectedClass] = useState(classes[0]?.name || '');
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
-    // --- NOVOS ESTADOS PARA O PERÍODO ---
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() +
-  1);
+  // --- ESTADO DO FORMULÁRIO ---
+  const [formData, setFormData] = useState({
+    nome: '',
+    classe: classes[0]?.name || ''
+  });
+
+  // --- ESTADOS DO PERÍODO ---
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const months = [
@@ -21,43 +26,46 @@
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
 
-    // Carregar alunos da classe selecionada
-    useEffect(() => {
-      loadStudents();
-    }, [selectedClass]);
+  // Recarregar alunos quando a classe, o mês ou o ano mudarem
+  useEffect(() => {
+    loadStudents();
+  }, [selectedClass, selectedMonth, selectedYear]);
 
-    const loadStudents = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await
-  studentFunctions.getStudentsByClass(selectedClass);
-        if (result.success) {
-          setStudents(result.data);
-        } else {
-          setError(result.error);
-        }
-      } catch (err) {
-        console.error('StudentManagement - Erro:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  const loadStudents = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await studentFunctions.getStudentsByClassAndMonth(
+        selectedClass, 
+        selectedMonth, 
+        selectedYear
+      );
+      if (result.success) {
+        setStudents(result.data);
+      } else {
+        setError(result.error);
       }
-    };
+    } catch (err) {
+      console.error('StudentManagement - Erro:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleAddStudent = () => {
-      setFormData({ nome: '', classe: selectedClass });
-      setEditingId(null);
-      setShowForm(true);
-    };
+  const handleAddStudent = () => {
+    setFormData({ nome: '', classe: selectedClass });
+    setEditingId(null);
+    setShowForm(true);
+  };
 
-    const handleEditStudent = (student) => {
-      setFormData({ nome: student.nome, classe: student.classe });
-      setEditingId(student.id);
-      setShowForm(true);
-    };
+  const handleEditStudent = (student) => {
+    setFormData({ nome: student.nome, classe: student.classe || selectedClass });
+    setEditingId(student.id);
+    setShowForm(true);
+  };
 
-    const handleSaveStudent = async () => {
+  const handleSaveStudent = async () => {
     if (!formData.nome.trim()) {
       setError('Nome do aluno é obrigatório');
       return;
@@ -67,7 +75,6 @@
     try {
       let result;
       if (editingId) {
-        // Agora enviamos o mês e ano para o backend
         result = await studentFunctions.updateStudent(
           editingId,
           formData.nome,
@@ -76,7 +83,6 @@
           selectedYear
         );
       } else {
-        // Agora enviamos o mês e ano para o backend
         result = await studentFunctions.addStudent(
           formData.nome,
           formData.classe,
@@ -88,7 +94,7 @@
       if (result.success) {
         await loadStudents();
         setShowForm(false);
-        setFormData({ nome: '', classe: '' });
+        setFormData({ nome: '', classe: selectedClass });
       } else {
         setError(result.error);
       }
@@ -99,24 +105,23 @@
     }
   };
 
-    const handleDeleteStudent = async (id) => {
-      if (!window.confirm('Tem certeza que deseja deletar este aluno?'))
-  return;
+  const handleDeleteStudent = async (id) => {
+    if (!window.confirm('Tem certeza que deseja remover este aluno do mês selecionado?')) return;
 
-      setLoading(true);
-      try {
-        const result = await studentFunctions.deleteStudent(id);
-        if (result.success) {
-          await loadStudents();
-        } else {
-          setError(result.error);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      const result = await studentFunctions.deleteStudent(id);
+      if (result.success) {
+        await loadStudents();
+      } else {
+        setError(result.error);
       }
-    };
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center

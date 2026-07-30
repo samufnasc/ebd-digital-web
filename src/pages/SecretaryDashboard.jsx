@@ -130,38 +130,34 @@ export default function SecretaryDashboard() {
       const selectedClassData = classes.find(c => c.id === selectedClass);
       const selectedClassName = selectedClassData?.name?.trim();
       
-      console.log('SecretaryDashboard - Carregando alunos para classe ID:', selectedClass);
-      console.log('SecretaryDashboard - Nome da classe:', selectedClassName);
-      
-      if (selectedClassName) {
-        const result = await studentFunctions.getStudentsByClass(selectedClassName);
-        console.log('SecretaryDashboard - Resultado de getStudentsByClass:', result);
+      if (selectedClassName && selectedDate) {
+        // Extrai Mês e Ano da data selecionada
+        const [yearStr, monthStr] = selectedDate.split('-');
+        const monthNum = parseInt(monthStr, 10);
+        const yearNum = parseInt(yearStr, 10);
+
+        const result = await studentFunctions.getStudentsByClassAndMonth(
+          selectedClassName, 
+          monthNum, 
+          yearNum
+        );
         
         if (result.success) {
-          console.log('SecretaryDashboard - Total de alunos carregado:', result.data.length);
           setStudents(result.data);
           const matriculatedCount = result.data.length;
           setFormData(prev => ({
             ...prev,
             matriculated: matriculatedCount
           }));
-          console.log(`Carregados ${matriculatedCount} alunos da classe ${selectedClassName}`);
         } else {
-          console.error('Erro ao carregar alunos:', result.error);
           setStudents([]);
-          setFormData(prev => ({
-            ...prev,
-            matriculated: 0
-          }));
+          setFormData(prev => ({ ...prev, matriculated: 0 }));
         }
       }
     } catch (err) {
       console.error('Erro ao carregar alunos:', err);
       setStudents([]);
-      setFormData(prev => ({
-        ...prev,
-        matriculated: 0
-      }));
+      setFormData(prev => ({ ...prev, matriculated: 0 }));
     } finally {
       setLoadingStudents(false);
     }
