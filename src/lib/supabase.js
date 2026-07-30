@@ -86,9 +86,51 @@ export const authFunctions = {
   },
 };
 
-// ============ ALUNOS ============
+// ============ ALUNOS COM VÍNCULO MENSAL ============
 export const studentFunctions = {
-  // Obter alunos por classe
+  // Obter alunos vinculados a uma classe em um MÊS/ANO específico
+  async getStudentsByClassAndMonth(className, month, year) {
+    try {
+      // 1. Buscar ID da equipe/classe
+      const { data: classeData, error: classeError } = await supabase
+        .from('equipes')
+        .select('id')
+        .eq('nome', className)
+        .maybeSingle();
+
+      if (classeError || !classeData) {
+        // Fallback: busca direta na tabela de alunos caso a equipe não esteja cadastrada
+        return await this.getStudentsByClass(className);
+      }
+
+      // 2. Buscar vínculos do mês/ano
+      const { data: vinculos, error: vinculoError } = await supabase
+        .from('aluno_vinculo_mensal')
+        .select('aluno_id, alunos_ebd(*)')
+        .eq('equipe_id', classeData.id)
+        .eq('mes', month)
+        .eq('ano', year);
+
+      if (vinculoError) throw vinculoError;
+
+      // Se houver vínculos gravados para este mês, retorna a lista
+      if (vinculos && vinculos.length > 0) {
+        const alunosList = vinculos
+          .map(v => v.alunos_ebd)
+          .filter(Boolean)
+          .sort((a, b) => a.nome.localeCompare(b.nome));
+        return { success: true, data: alunosList };
+      }
+
+      // Se ainda não houver vínculo no mês/ano (ex: mês novo), retorna os alunos cadastrados atualmente na classe
+      return await this.getStudentsByClass(className);
+    } catch (error) {
+      console.error('Erro ao buscar alunos por vínculo mensal:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+  },
+
+  // Obter alunos por classe (Geral / Atual)
   async getStudentsByClass(className) {
     try {
       const { data, error } = await supabase
@@ -105,116 +147,46 @@ export const studentFunctions = {
     }
   },
 
-  // Contar alunos por classe
-  async countStudentsByClass(className) {
+  // Adicionar aluno garantindo o VÍNCULO MENSAL
+  async addStudent(nome, classe, month = null, year = null) {
     try {
-      const { data, error, count } = await supabase
+      const currentMonth = month || (new Date().getMonth() + 1);
+      const currentYear = year || new Date().getFullYear();
+
+      // 1. Salvar ou atualizar o aluno
+      const { data: aluno, error: alunoError } = await supabase
         .from('alunos_ebd')
-        .select('*', { count: 'exact', head: true })
-        .eq('classe', className);
-      
-      if (error) throw error;
-      return { success: true, count: count || 0 };
-    } catch (error) {
-      console.error('Erro ao contar alunos:', error);
-      return { success: false, error: error.message, count: 0 };
-    }
-  },
+        .upsert({ nome, classe }, { onConflict: 'nome' })
+        .select()
+        .single();
 
-  // Obter todos os alunos
-  async getAllStudents() {
-    try {
-      const { data, error } = await supabase
-        .from('alunos_ebd')
-        .select('*')
-        .order('classe', { ascending: true })
-        .order('nome', { ascending: true });
-      
-      if (error) throw error;
-      return { success: true, data: data || [] };
-    } catch (error) {
-      console.error('Erro ao buscar alunos:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-  },
+      if (alunoError) throw alunoError;
 
-  // Adicionar aluno com suporte a vínculo histórico
-    async addStudent(nome, classe, month = null, year = null) {
-      try {
-        // 1. Salvar o aluno e garantir que ele existe (upsert por nome)
-        const { data: aluno, error: alunoError } = await supabase
-          from('alunos_ebd')
-          upsert({ nome, classe }, { onConflict: 'nome' })
-          select()
-          single();
+      // 2. Buscar ID da equipe
+      const { data: classeData } = await supabase
+        .from('equipes')
+        .select('id')
+        .eq('nome', classe)
+        .maybeSingle();
 
-        if (alunoError) throw alunoError;
-
-        // 2. Se fornecido mês e ano, criar o vínculo na tabela de histórico
-        if (month && year) {
-          // BUSCA O ID DA CLASSE A PARTIR DO NOME
-          const { data: classeData, error: classeError } = await supabase
-            from('equipes') // Nome da sua tabela de classes/equipes
-            select('id')
-            eq('nome', classe)
-            single();
-
-          if (classeError) {
-            console.warn('Aviso: Não foi possível encontrar o ID da classe para o histórico:', classeError.message);
-          } else if (classeData?.id) {
-            // Criar o vínculo na tabela de histórico
-            const { error: vinculoError } = await supabase
-              from('aluno_vinculo_mensal')
-              insert([{
-                aluno_id: aluno.id,
-                classe_id: classeData.id, // Agora usamos o UUID, não o texto!
-                mes_referencia: month,
-                ano_referencia: year
-              }]);
-
-            if (vinculoError) console.warn('Aviso: Erro ao criar vínculo mensal:', vinculoError);
-          }
-        }
-
-        return { success: true, data: aluno };
-      } catch (error) {
-        console.error('Erro ao adicionar aluno:', error);
-        return { success: false, error: error.message };
+      if (classeData?.id && aluno?.id) {
+        // 3. Inserir/Atualizar vínculo mensal do aluno
+        await supabase
+          .from('aluno_vinculo_mensal')
+          .upsert([{ 
+            aluno_id: aluno.id, 
+            equipe_id: classeData.id, 
+            mes: currentMonth, 
+            ano: currentYear 
+          }], { onConflict: 'aluno_id,mes,ano' });
       }
-    },
 
-  // ✅ FUNÇÃO QUE FALTAVA PARA O ADMIN:
-  async updateStudent(id, nome, classe, month = null, year = null) {
-    try {
-      const { data, error } = await supabase
-        from('alunos_ebd')
-        update({ nome, classe })
-        eq('id', id)
-        select();
-
-      if (error) throw error;
-      return { success: true, data };
+      return { success: true, data: aluno };
     } catch (error) {
-      console.error('Erro ao atualizar aluno:', error);
+      console.error('Erro ao adicionar aluno com vínculo:', error);
       return { success: false, error: error.message };
     }
-  },
-
-  // Deletar aluno
-  async deleteStudent(id) {
-    try {
-      const { error } = await supabase
-        .from('alunos_ebd')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      return { success: true };
-    } catch (error) {
-      console.error('Erro ao deletar aluno:', error);
-      return { success: false, error: error.message };
-    }
-  },
+  }
 };
 
 
