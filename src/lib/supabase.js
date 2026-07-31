@@ -6,35 +6,14 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 function criarSupabaseMock() {
   const errMsg = 'Supabase nao configurado. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_KEY nas env vars da Vercel (Settings > Environment Variables).';
   console.warn('[supabase.js] ' + errMsg);
-  const mockQuery = () => Promise.resolve({ data: null, error: new Error(errMsg) });
-  const mockChain = () => ({
-    select: () => mockQuery(),
-    insert: () => mockQuery(),
-    update: () => mockQuery(),
-    delete: () => mockQuery(),
-    upsert: () => mockQuery(),
-    eq: () => mockChain(),
-    neq: () => mockChain(),
-    order: () => mockChain(),
-    single: () => mockQuery(),
-    maybeSingle: () => mockQuery(),
-    limit: () => mockQuery(),
-    or: () => mockChain(),
-    lte: () => mockChain(),
-    gte: () => mockChain(),
-    ilike: () => mockChain(),
-    is: () => mockChain(),
-    in: () => mockChain(),
-    not: () => mockChain(),
-    filter: () => mockChain(),
-    match: () => mockChain(),
-    textSearch: () => mockChain(),
-    range: () => mockChain(),
-    abortSignal: () => mockChain(),
-    returns: () => mockChain(),
-    csv: () => mockQuery(),
+  const result = () => ({ data: null, error: new Error(errMsg), count: null });
+  const chainable = new Proxy({}, {
+    get: (target, prop) => {
+      if (prop === 'then') return (resolve, reject) => Promise.resolve(resolve(result()));
+      return () => chainable;
+    }
   });
-  return { from: () => mockChain() };
+  return { from: () => chainable };
 }
 
 export const supabase = (SUPABASE_URL && SUPABASE_KEY)
