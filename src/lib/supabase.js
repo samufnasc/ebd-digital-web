@@ -3,13 +3,43 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error(
-    '[supabase.js] Erro: VITE_SUPABASE_URL e VITE_SUPABASE_KEY devem estar definidos no arquivo .env'
-  );
+function criarSupabaseMock() {
+  const errMsg = 'Supabase nao configurado. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_KEY nas env vars da Vercel (Settings > Environment Variables).';
+  console.warn('[supabase.js] ' + errMsg);
+  const mockQuery = () => Promise.resolve({ data: null, error: new Error(errMsg) });
+  const mockChain = () => ({
+    select: () => mockQuery(),
+    insert: () => mockQuery(),
+    update: () => mockQuery(),
+    delete: () => mockQuery(),
+    upsert: () => mockQuery(),
+    eq: () => mockChain(),
+    neq: () => mockChain(),
+    order: () => mockChain(),
+    single: () => mockQuery(),
+    maybeSingle: () => mockQuery(),
+    limit: () => mockQuery(),
+    or: () => mockChain(),
+    lte: () => mockChain(),
+    gte: () => mockChain(),
+    ilike: () => mockChain(),
+    is: () => mockChain(),
+    in: () => mockChain(),
+    not: () => mockChain(),
+    filter: () => mockChain(),
+    match: () => mockChain(),
+    textSearch: () => mockChain(),
+    range: () => mockChain(),
+    abortSignal: () => mockChain(),
+    returns: () => mockChain(),
+    csv: () => mockQuery(),
+  });
+  return { from: () => mockChain() };
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const supabase = (SUPABASE_URL && SUPABASE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
+  : criarSupabaseMock();
 
 // ============ AUTENTICAÇÃO ============
 export const authFunctions = {
