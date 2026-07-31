@@ -155,7 +155,9 @@ export default function TeacherManagement({ onClose }) {
     setDeleteKey(null);
   };
 
-  const linkedEntries = Object.entries(professores || {});
+  const linkedEntries = Object.entries(professores || {}).filter(
+    ([, p]) => p && (p.primeiroNome || p.nomeCompleto)
+  );
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">

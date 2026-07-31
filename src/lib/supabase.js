@@ -125,7 +125,7 @@ export const professorFunctions = {
 
   async getProfessores() {
     // Base sempre no localStorage (funciona mesmo sem tabela no banco)
-    const local = this.getProfessoresLocal();
+    let local = this.getProfessoresLocal();
     try {
       const { data, error } = await supabase
         .from('professores')
@@ -144,11 +144,26 @@ export const professorFunctions = {
           enabled: !!p.enabled,
         };
       });
+      this.limparProfessores(map);
+      this.salvarProfessoresLocal(map);
       return { success: true, data: map };
     } catch (err) {
       console.warn('[supabase.js] getProfessores - fallback localStorage:', err.message);
+      local = this.limparProfessores(local);
+      this.salvarProfessoresLocal(local);
       return { success: true, data: local };
     }
+  },
+
+  // Remove entradas inválidas/vazias (ex.: cadastro incompleto) do mapa de professores
+  limparProfessores(map) {
+    Object.keys(map || {}).forEach(key => {
+      const p = map[key];
+      if (!p || (!p.primeiroNome && !p.nomeCompleto)) {
+        delete map[key];
+      }
+    });
+    return map;
   },
 
   async upsertProfessor(prof) {
