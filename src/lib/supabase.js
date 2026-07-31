@@ -101,6 +101,106 @@ export const authFunctions = {
   },
 };
 
+// ============ PROFESSORES ============
+// Acesso dos professores: o Admin vincula alunos da classe "Adonai" (professores)
+// a uma classe de atuação. Eles entram com o primeiro nome e senha (padrão 1234567).
+// Persistência: Supabase (tabela "professores") com fallback para localStorage.
+export const professorFunctions = {
+  getProfessoresLocal() {
+    try {
+      const raw = localStorage.getItem('ebd_professores');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  salvarProfessoresLocal(map) {
+    try {
+      localStorage.setItem('ebd_professores', JSON.stringify(map || {}));
+    } catch (err) {
+      console.warn('[supabase.js] salvarProfessoresLocal - erro:', err.message);
+    }
+  },
+
+  async getProfessores() {
+    try {
+      const { data, error } = await supabase
+        .from('professores')
+        .select('*');
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return { success: true, data: this.getProfessoresLocal() };
+      }
+
+      const map = {};
+      (data || []).forEach(p => {
+        map[p.username] = {
+          nomeCompleto: p.nome_completo,
+          primeiroNome: p.primeiro_nome,
+          classe: p.classe,
+          password: p.password,
+          enabled: !!p.enabled,
+        };
+      });
+      return { success: true, data: map };
+    } catch (err) {
+      console.warn('[supabase.js] getProfessores - fallback localStorage:', err.message);
+      return { success: true, data: this.getProfessoresLocal() };
+    }
+  },
+
+  async upsertProfessor(prof) {
+    const local = this.getProfessoresLocal();
+    local[prof.username] = {
+      nomeCompleto: prof.nomeCompleto,
+      primeiroNome: prof.primeiroNome,
+      classe: prof.classe,
+      password: prof.password,
+      enabled: !!prof.enabled,
+    };
+    this.salvarProfessoresLocal(local);
+
+    try {
+      const { error } = await supabase
+        .from('professores')
+        .upsert({
+          username: prof.username,
+          nome_completo: prof.nomeCompleto,
+          primeiro_nome: prof.primeiroNome,
+          classe: prof.classe,
+          password: prof.password,
+          enabled: !!prof.enabled,
+        });
+      if (error) throw error;
+    } catch (err) {
+      console.warn('[supabase.js] upsertProfessor - erro no Supabase (tabela professores ausente?):', err.message);
+    }
+
+    return { success: true };
+  },
+
+  async deleteProfessor(username) {
+    const local = this.getProfessoresLocal();
+    delete local[username];
+    this.salvarProfessoresLocal(local);
+
+    try {
+      const { error } = await supabase
+        .from('professores')
+        .delete()
+        .eq('username', username);
+      if (error) throw error;
+    } catch (err) {
+      console.warn('[supabase.js] deleteProfessor - erro no Supabase (tabela professores ausente?):', err.message);
+    }
+
+    return { success: true };
+  },
+};
+
 // Helper functions para controle de vínculos mensais e exclusões de alunos
 export function getExclusoesMensais() {
   try {

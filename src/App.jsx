@@ -4,6 +4,7 @@ import { DataProvider } from './context/DataContext';
 import Login from './pages/Login';
 import SecretaryDashboard from './pages/SecretaryDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import TeacherDashboard from './pages/TeacherDashboard';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -16,6 +17,8 @@ function AppContent() {
           setCurrentPage('/admin');
         } else if (user.role === 'secretary') {
           setCurrentPage('/secretary');
+        } else if (user.role === 'teacher') {
+          setCurrentPage('/teacher');
         }
       } else {
         setCurrentPage('/login');
@@ -41,6 +44,7 @@ function AppContent() {
       {currentPage === '/login' && <Login />}
       {currentPage === '/secretary' && <SecretaryDashboard />}
       {currentPage === '/admin' && <AdminDashboard />}
+      {currentPage === '/teacher' && <TeacherDashboard />}
     </>
   );
 }

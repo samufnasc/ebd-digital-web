@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect, useContext } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, professorFunctions } from '../lib/supabase';
 
 const AuthContext = createContext();
 
@@ -13,6 +13,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState(DEFAULT_USERS);
+  const [professores, setProfessores] = useState({});
+
+  const refreshProfessores = async () => {
+    const result = await professorFunctions.getProfessores();
+    if (result.success && result.data) {
+      setProfessores(result.data);
+    }
+  };
 
   // Carregar usuarios do Supabase ao iniciar
   useEffect(() => {
@@ -62,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     loadUsers();
+    refreshProfessores();
     setLoading(false);
   }, []);
 
@@ -75,6 +84,22 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userData));
       return true;
     }
+
+    // Login de professor: primeiro nome (case-insensitive) + senha definida pelo admin
+    const profKey = (username || '').trim().toLowerCase();
+    const professor = professores[profKey];
+    if (professor && professor.enabled && professor.password === password) {
+      const userData = {
+        username: professor.primeiroNome || professor.nomeCompleto,
+        role: 'teacher',
+        classe: professor.classe,
+        nomeCompleto: professor.nomeCompleto,
+      };
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      return true;
+    }
+
     return false;
   };
 
@@ -192,6 +217,8 @@ export const AuthProvider = ({ children }) => {
         updateUser,
         deleteUser,
         users,
+        professores,
+        refreshProfessores,
       }}
     >
       {children}

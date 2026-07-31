@@ -8,6 +8,7 @@ import { gerarRelatorioSupervisao } from '../services/relatorioSupervisao';
 import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
+import TeacherManagement from './TeacherManagement';
 
 // ✅ FUNÇÕES UTILITÁRIAS DE DATA - PADRONIZAÇÃO GLOBAL
 /**
@@ -43,6 +44,7 @@ export default function AdminDashboard() {
   const [selectedDate, setSelectedDate] = useState(getTodayForDatabase());
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showStudentManagement, setShowStudentManagement] = useState(false);
+  const [showTeacherManagement, setShowTeacherManagement] = useState(false);
   const [showPDFOptions, setShowPDFOptions] = useState(false);
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -387,6 +389,12 @@ export default function AdminDashboard() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
+              onClick={() => setShowTeacherManagement(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>👨‍🏫</span> Professores
+            </button>
+            <button
               onClick={() => setShowStudentManagement(true)}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
             >
@@ -602,6 +610,11 @@ export default function AdminDashboard() {
       {/* Student Management Modal */}
       {showStudentManagement && (
         <StudentManagement onClose={() => setShowStudentManagement(false)} />
+      )}
+
+      {/* Teacher Management Modal */}
+      {showTeacherManagement && (
+        <TeacherManagement onClose={() => setShowTeacherManagement(false)} />
       )}
 
       {/* User Management Modal */}
