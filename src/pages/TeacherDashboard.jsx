@@ -132,25 +132,25 @@ export default function TeacherDashboard() {
               </p>
             </div>
 
-            <div className="flex gap-3">
-              <div>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex-1 min-w-[120px]">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Mês</label>
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-600 outline-none text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-600 outline-none text-sm"
                 >
                   {MESES.map((m, idx) => (
                     <option key={idx + 1} value={idx + 1}>{m}</option>
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="flex-1 min-w-[120px]">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Ano</label>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-600 outline-none text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-600 outline-none text-sm"
                 >
                   {[2023, 2024, 2025, 2026].map(year => (
                     <option key={year} value={year}>{year}</option>
@@ -211,11 +211,13 @@ export default function TeacherDashboard() {
               <p className="text-gray-500 text-sm">📭 Nenhum registro de aula para {classe} em {selectedDateLabel}.</p>
             </div>
           ) : (
-            <img
-              src={chartUrl}
-              alt="Gráfico de Frequência Diária"
-              className="w-full h-auto rounded-xl border border-gray-100"
-            />
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <img
+                src={chartUrl}
+                alt="Gráfico de Frequência Diária"
+                className="w-full min-w-[600px] h-auto"
+              />
+            </div>
           )}
         </div>
 
