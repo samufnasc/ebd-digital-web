@@ -2,20 +2,20 @@
   import { studentFunctions } from '../lib/supabase';
   import { useData } from '../context/DataContext';
 
-  export default function StudentManagement({ onClose }) {
+  export default function StudentManagement({ onClose, initialClass, initialMonth, initialYear }) {
     const { classes } = useData();
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [selectedClass, setSelectedClass] = useState(classes[0]?.name || '');
+    const [selectedClass, setSelectedClass] = useState(initialClass || classes[0]?.name || '');
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [formData, setFormData] = useState({ nome: '', classe: classes[0]?.name || '' });
+    const [formData, setFormData] = useState({ nome: '', classe: initialClass || classes[0]?.name || '' });
     const [studentToDelete, setStudentToDelete] = useState(null);
 
     // --- NOVOS ESTADOS PARA O PERÍODO ---
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState(initialMonth || new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(initialYear || new Date().getFullYear());
 
     const months = [
       "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
