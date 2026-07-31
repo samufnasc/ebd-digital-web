@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { calculatePercentage, formatCurrency } from '../utils/ocr';
 import { studentFunctions } from '../lib/supabase';
+import StudentManagement from './StudentManagement';
 
 // ✅ FUNÇÕES UTILITÁRIAS DE DATA - PADRONIZAÇÃO GLOBAL
 const getTodayForDatabase = () => {
@@ -221,23 +222,6 @@ export default function SecretaryDashboard() {
     }, {})
   );
 
-  let dayFrequencyAvg = 0;
-  if (Array.isArray(reportsForDay) && reportsForDay.length > 0) {
-    const dayPercentages = reportsForDay.map(report => {
-      const mat = Number(report.matriculated) || 0;
-      const pres = Number(report.present) || 0;
-      return mat > 0 ? (pres / mat) * 100 : 0;
-    });
-    dayFrequencyAvg = Math.round(dayPercentages.reduce((a, b) => a + b, 0) / dayPercentages.length);
-  }
-
-  const currentClassPercentage = formData.matriculated > 0
-    ? Math.round((formData.present / formData.matriculated) * 100)
-    : 0;
-
-  const currentTotalAssistance = formData.present + formData.visitor;
-  const todayForDisplay = formatDateToBrazilian(selectedDate);
-
   const consolidatedData = reportsForDay.reduce((acc, report) => {
     return {
       matriculated: acc.matriculated + (Number(report.matriculated) || 0),
@@ -248,21 +232,35 @@ export default function SecretaryDashboard() {
     };
   }, { matriculated: 0, present: 0, absent: 0, offering: 0, visitor: 0 });
 
+  // % Frequência Média do dia: total de presentes / total de matriculados
+  // (média ponderada pelo tamanho das classes, consistente com o consolidado)
+  let dayFrequencyAvg = 0;
+  if (consolidatedData.matriculated > 0) {
+    dayFrequencyAvg = Math.round((consolidatedData.present / consolidatedData.matriculated) * 100);
+  }
+
+  const currentClassPercentage = formData.matriculated > 0
+    ? Math.round((formData.present / formData.matriculated) * 100)
+    : 0;
+
+  const currentTotalAssistance = formData.present + formData.visitor;
+  const todayForDisplay = formatDateToBrazilian(selectedDate);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <img src="/logo-ebd.png" alt="EBD Digital Logo" className="w-12 h-12 object-contain rounded-full shadow-xs" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Painel do Secretário</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Painel do Secretário</h1>
               <p className="text-gray-500 text-sm">Bem-vindo, {user?.username}</p>
             </div>
           </div>
           <button
             onClick={logout}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-sm"
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-sm self-start sm:self-auto"
           >
             Sair
           </button>
@@ -315,6 +313,7 @@ export default function SecretaryDashboard() {
                     <th className="px-4 py-3 border-r border-gray-200 font-semibold text-left">Classe</th>
                     <th className="px-4 py-3 border-r border-gray-200 font-semibold text-center">Mat.</th>
                     <th className="px-4 py-3 border-r border-gray-200 font-semibold text-center">Pres.</th>
+                    <th className="px-4 py-3 border-r border-gray-200 font-semibold text-center">Percen. Presença (%)</th>
                     <th className="px-4 py-3 border-r border-gray-200 font-semibold text-center">Aus.</th>
                     <th className="px-4 py-3 border-r border-gray-200 font-semibold text-center">Vis.</th>
                     <th className="px-4 py-3 border-r border-gray-200 font-semibold text-center">Bíbl.</th>
@@ -328,6 +327,7 @@ export default function SecretaryDashboard() {
                       <td className="px-4 py-3 border-r border-gray-200 font-semibold text-gray-900">{rep.className || rep.classe}</td>
                       <td className="px-4 py-3 border-r border-gray-200 text-center text-gray-700">{rep.matriculated}</td>
                       <td className="px-4 py-3 border-r border-gray-200 text-center text-emerald-600 font-semibold">{rep.present}</td>
+                      <td className="px-4 py-3 border-r border-gray-200 text-center text-sky-700 font-semibold">{calculatePercentage(Number(rep.present), Number(rep.matriculated))}%</td>
                       <td className="px-4 py-3 border-r border-gray-200 text-center text-red-500 font-medium">{rep.absent}</td>
                       <td className="px-4 py-3 border-r border-gray-200 text-center text-gray-700">{rep.visitor}</td>
                       <td className="px-4 py-3 border-r border-gray-200 text-center text-gray-700">{rep.bibles}</td>
@@ -355,7 +355,7 @@ export default function SecretaryDashboard() {
               onClick={() => setShowStudentList(true)}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl shadow-xs transition text-xs flex items-center gap-1.5 cursor-pointer"
             >
-              <span>👥</span> Ver Alunos da Classe
+              <span>👥</span> Gerenciar Alunos da Classe
             </button>
           </div>
 
@@ -553,49 +553,17 @@ export default function SecretaryDashboard() {
         </div>
       </main>
 
-      {/* Modal de Alunos da Classe */}
+      {/* Modal de Gestão de Alunos da Classe (mesmo componente do Admin) */}
       {showStudentList && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">
-                Alunos da Classe - {classes.find(c => c.id === selectedClass)?.name}
-              </h2>
-              <button
-                onClick={() => setShowStudentList(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 text-lg cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {loadingStudents ? (
-              <div className="text-center py-6">
-                <p className="text-gray-500 text-sm">Carregando lista de alunos...</p>
-              </div>
-            ) : students.length > 0 ? (
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                {students.map((student, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center">
-                    <span className="font-semibold text-gray-800 text-sm">{student.nome || student.name || 'Sem nome'}</span>
-                    <span className="text-xs bg-sky-100 text-sky-800 px-2.5 py-1 rounded-md font-medium">Matriculado</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 bg-gray-50 rounded-xl">
-                <p className="text-gray-500 text-sm">Nenhum aluno matriculado nesta classe.</p>
-              </div>
-            )}
-
-            <button
-              onClick={() => setShowStudentList(false)}
-              className="mt-6 w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-semibold text-sm cursor-pointer"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
+        <StudentManagement
+          onClose={() => {
+            setShowStudentList(false);
+            loadStudentsAndCheckReport();
+          }}
+          initialClass={classes.find(c => c.id === selectedClass)?.name}
+          initialMonth={selectedDate && selectedDate.includes('-') ? parseInt(selectedDate.split('-')[1], 10) : undefined}
+          initialYear={selectedDate && selectedDate.includes('-') ? parseInt(selectedDate.split('-')[0], 10) : undefined}
+        />
       )}
     </div>
   );

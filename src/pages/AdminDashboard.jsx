@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext';
 import { formatCurrency } from '../utils/ocr';
 import { generatePDF } from '../utils/pdf';
 import { gerarRelatorioMensalCompleto } from '../services/pdfService';
+import { gerarRelatorioSupervisao } from '../services/relatorioSupervisao';
 import { studentFunctions } from '../lib/supabase';
 import UserManagement from './UserManagement';
 import StudentManagement from './StudentManagement';
@@ -104,10 +105,11 @@ export default function AdminDashboard() {
     loadTotalStudents();
   }, [selectedMonth, selectedYear, showStudentManagement]);
 
-  // Recarregar relatórios quando a data muda
+  // Carregar TODOS os relatórios (não apenas do dia selecionado),
+  // para que a visão mensal calcule a média de todos os domingos do mês
   useEffect(() => {
-    loadReports(selectedDate);
-  }, [selectedDate, loadReports]);
+    loadReports();
+  }, [loadReports]);
 
   // ✅ FASE 8.0: useEffect dedicado para recalcular mês/ano quando selectedDate muda
   // Isso garante que a barra inferior (Mensal) seja re-executada sempre que a data mudar
@@ -177,39 +179,21 @@ export default function AdminDashboard() {
     }
   });
 
-  // ✅ FASE 8.0: CÁLCULO INTELIGENTE - Média Aritmética de Frequência com BLINDAGEM DE TIPOS
-  // Calcular a porcentagem de cada classe e depois fazer a média
-  const frequencyPercentages = reportsForDate.map(report => {
-    const classMatriculados = Number(report.matriculated) || totalStudents;
-    const present = Number(report.present) || 0;
-    
-    // ✅ BLINDAGEM: Validar que classMatriculados é um número válido
-    if (!Number.isFinite(classMatriculados) || classMatriculados <= 0) {
-      return 0;
-    }
-    
-    const percentage = (present / classMatriculados) * 100;
-    // ✅ BLINDAGEM: Garantir que o resultado é um número válido
-    return Number.isFinite(percentage) ? percentage : 0;
-  });
-  
-  const averageFrequency = frequencyPercentages.length > 0
-    ? Math.round(frequencyPercentages.reduce((a, b) => a + b, 0) / frequencyPercentages.length)
+  // ✅ FASE 8.0: CÁLCULO INTELIGENTE - Frequência Geral do Dia
+  // Média ponderada: total de presentes / total de matriculados (dos relatórios do dia),
+  // consistente com o consolidado (ex.: 23 presentes / 54 matriculados = 43%)
+  const dayTotalMatriculated = reportsForDate.reduce((sum, r) => sum + (Number(r.matriculated) || 0), 0);
+  const dayTotalPresent = reportsForDate.reduce((sum, r) => sum + (Number(r.present) || 0), 0);
+
+  const averageFrequency = dayTotalMatriculated > 0
+    ? Math.round((dayTotalPresent / dayTotalMatriculated) * 100)
     : 0;
 
   // ✅ BLINDAGEM: Validar que averageFrequency é um número válido
   const safeAverageFrequency = Number.isFinite(averageFrequency) ? averageFrequency : 0;
 
-  // Usar total de alunos do banco em vez de matriculados do relatório
-  const consolidatedPresent = Number(consolidatedData.present) || 0;
-  const percentage = totalStudents > 0
-    ? Math.round((consolidatedPresent / totalStudents) * 100)
-    : 0;
-  
-  // ✅ BLINDAGEM: Validar que percentage é um número válido
-  const safePercentage = Number.isFinite(percentage) ? percentage : 0;
-  
   // Total de assistência = Presentes + Visitantes
+  const consolidatedPresent = Number(consolidatedData.present) || 0;
   const consolidatedVisitor = Number(consolidatedData.visitor) || 0;
   const totalAssistance = consolidatedPresent + consolidatedVisitor;
   const safeTotalAssistance = Number.isFinite(totalAssistance) ? totalAssistance : 0;
@@ -229,7 +213,7 @@ export default function AdminDashboard() {
   console.log('  - Relatórios do mês:', reportsForMonth.map(r => r.date).sort());
 
   // ✅ FASE 8.0: Calcular MÉDIA DE FREQUÊNCIA MENSAL com blindagem de tipos
-  let monthlyFrequencyPercentages = [];
+  // Média ponderada: total de presentes / total de matriculados (todos os relatórios do mês)
   let monthlyAverageFrequency = 0;
   let monthlyAverageFaltas = 0;
   let monthlyTotalOffering = 0;
@@ -237,15 +221,11 @@ export default function AdminDashboard() {
 
   try {
     if (Array.isArray(reportsForMonth) && reportsForMonth.length > 0) {
-      monthlyFrequencyPercentages = reportsForMonth.map(report => {
-        const classMatriculados = Number(report.matriculated) || totalStudents;
-        return classMatriculados > 0 
-          ? (Number(report.present) / classMatriculados) * 100 
-          : 0;
-      });
-      
-      monthlyAverageFrequency = monthlyFrequencyPercentages.length > 0
-        ? Math.round(monthlyFrequencyPercentages.reduce((a, b) => a + b, 0) / monthlyFrequencyPercentages.length)
+      const monthlyTotalMatriculated = reportsForMonth.reduce((sum, r) => sum + (Number(r.matriculated) || 0), 0);
+      const monthlyTotalPresent = reportsForMonth.reduce((sum, r) => sum + (Number(r.present) || 0), 0);
+
+      monthlyAverageFrequency = monthlyTotalMatriculated > 0
+        ? Math.round((monthlyTotalPresent / monthlyTotalMatriculated) * 100)
         : 0;
 
       // MÉDIA DE FALTAS MENSAIS = 100% - Média Frequência
@@ -276,6 +256,23 @@ export default function AdminDashboard() {
   console.log('  - Média Faltas:', monthlyAverageFaltas, '%');
   console.log('  - Total Ofertas (R$):', monthlyTotalOffering);
   console.log('  - Total Visitantes:', monthlyTotalVisitors);
+
+  const handleGerarRelatorioSupervisao = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      await gerarRelatorioSupervisao({
+        congregacao: congregacaoNome || localStorage.getItem('ebd_congregacao_nome') || 'Congregação Mensageiros da Fé',
+        month: selectedMonth,
+        year: selectedYear,
+        reports,
+      });
+    } catch (err) {
+      console.error('Erro ao gerar relatório de supervisão:', err);
+      alert(`Erro ao gerar Relatório: ${err?.message || err}`);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   const handleExportPDF = (type = 'general') => {
     generatePDF(consolidatedData, reportsByClass, selectedDate, type, {
@@ -380,15 +377,15 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <img src="/logo-ebd.png" alt="EBD Digital Logo" className="w-12 h-12 object-contain rounded-full shadow-xs" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Painel do Admin</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Painel do Admin</h1>
               <p className="text-gray-500 text-sm">Bem-vindo, {user?.username}</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setShowStudentManagement(true)}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
@@ -456,10 +453,23 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold text-gray-900">Relatório Geral</h2>
             <div className="flex flex-wrap gap-2">
               <button
+                onClick={handleGerarRelatorioSupervisao}
+                disabled={isGeneratingPDF}
+                className={`px-4 py-2 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-sm ${
+                  isGeneratingPDF ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                <span>📄</span> {isGeneratingPDF ? 'Gerando...' : 'Gerar Relatório Mensal'}
+              </button>
+              <button
                 onClick={() => setShowMonthlyReport(true)}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-sm"
               >
-                <span>📊</span> Relatório Mensal
+                <span>📊</span>
+                <span className="flex flex-col items-start leading-tight">
+                  <span>Relatório Mensal</span>
+                  <span>Analítico</span>
+                </span>
               </button>
               <button
                 onClick={handleDeleteReports}
@@ -511,7 +521,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* TOGGLE DE VISÃO - Dia vs Mês */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setViewMode('day')}
               className={`px-4 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 cursor-pointer ${
@@ -539,7 +549,7 @@ export default function AdminDashboard() {
             // MODO DIA: Exibir dados do dia selecionado
             <div className="bg-sky-50/40 rounded-xl p-5 border border-sky-200">
               <h3 className="text-sm font-semibold text-gray-600 mb-4">Dados do Dia - {formatDateToBrazilian(selectedDate)}</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
                   <p className="text-xs text-gray-500 font-medium mb-1">Total Matriculados</p>
                   <p className="text-2xl font-bold text-sky-600">{totalStudents}</p>
@@ -555,6 +565,10 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-xs text-gray-500 font-medium mb-1">Frequência Geral</p>
                   <p className="text-2xl font-bold text-sky-600">{averageFrequency}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">Total de Ofertas (R$)</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(consolidatedData.offering)}</p>
                 </div>
               </div>
             </div>
