@@ -36,8 +36,8 @@ export const DataProvider = ({ children }) => {
   const loadReports = useCallback(async (date = null) => {
     setLoading(true);
     setError(null);
+    let result = null;
     try {
-      let result;
       if (date) {
         result = await reportFunctions.getReportsByDate(date);
       } else {
