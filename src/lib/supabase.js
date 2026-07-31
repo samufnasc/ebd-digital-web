@@ -138,9 +138,26 @@ export function temExclusaoAte(alunoId, month, year, exclusoesMap) {
     if (isNaN(exclMes) || isNaN(exclAno)) continue;
     const exclAlunoId = parts.slice(0, -2).join('_');
     if (exclAlunoId !== alunoId) continue;
-    if (exclAno < y || (exclAno === y && exclMes <= m)) return true;
+    if (exclAno < 2026 || (exclAno === 2026 && exclMes < 7)) {
+      if (exclMes === m && exclAno === y) return true;
+    } else {
+      if (exclAno < y || (exclAno === y && exclMes <= m)) return true;
+    }
   }
   return false;
+}
+
+export function temExclusaoExata(alunoId, month, year, exclusoesMap) {
+  if (!month || !year) return false;
+  return Object.keys(exclusoesMap).some(key => {
+    if (!exclusoesMap[key]) return false;
+    const parts = key.split('_');
+    const exclAno = parseInt(parts[parts.length - 1], 10);
+    const exclMes = parseInt(parts[parts.length - 2], 10);
+    if (isNaN(exclMes) || isNaN(exclAno)) return false;
+    const exclAlunoId = parts.slice(0, -2).join('_');
+    return exclAlunoId === alunoId && exclMes === Number(month) && exclAno === Number(year);
+  });
 }
 
 export function getVinculosMensaisMap() {
@@ -249,7 +266,12 @@ export async function isAlunoExcluidoNoMesSupabase(alunoId, month, year) {
     if (!data || data.length === 0) return false;
     const m = Number(month);
     const y = Number(year);
-    return data.some(e => e.ano < y || (e.ano === y && e.mes <= m));
+    return data.some(e => {
+      if (e.ano < 2026 || (e.ano === 2026 && e.mes < 7)) {
+        return e.mes === m && e.ano === y;
+      }
+      return e.ano < y || (e.ano === y && e.mes <= m);
+    });
   } catch (err) {
     console.warn('[supabase.js] isAlunoExcluidoNoMesSupabase - fallback localStorage:', err.message);
     return isAlunoExcluidoNoMes(alunoId, month, year);
@@ -279,13 +301,16 @@ export async function filterAlunosByMonthYear(alunosList, month, year) {
   ]);
 
   return alunosList.filter(aluno => {
-    if (temExclusaoAte(aluno.id, m, y, exclusoesMap)) return false;
-
     const studentBindings = vinculosMap[aluno.id];
+
     if (Array.isArray(studentBindings) && studentBindings.length > 0) {
-      return studentBindings.includes(currentKey);
+      if (studentBindings.includes(currentKey)) {
+        return !temExclusaoExata(aluno.id, m, y, exclusoesMap);
+      }
+      return false;
     }
 
+    if (temExclusaoAte(aluno.id, m, y, exclusoesMap)) return false;
     return true;
   });
 }
@@ -480,6 +505,21 @@ export const studentFunctions = {
       // 2. Registrar vínculo (Supabase + localStorage)
       if (aluno?.id) {
         await registrarVinculoMensalSupabase(aluno.id, m, y);
+        // Re-adição: remover exclusão deste aluno/mês (se existir)
+        try {
+          const exclKey = `${aluno.id}_${m}_${y}`;
+          const exclusoes = getExclusoesMensais();
+          delete exclusoes[exclKey];
+          localStorage.setItem('ebd_exclusoes_mensais', JSON.stringify(exclusoes));
+          await supabase
+            .from('exclusoes_mensais')
+            .delete()
+            .eq('aluno_id', aluno.id)
+            .eq('mes', m)
+            .eq('ano', y);
+        } catch (err) {
+          console.warn('[supabase.js] addStudent - erro ao limpar exclusao:', err.message);
+        }
       }
 
       return { success: true, data: aluno };
