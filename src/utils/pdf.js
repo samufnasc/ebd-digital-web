@@ -12,14 +12,14 @@ import autoTable from 'jspdf-autotable';
 export const generatePDF = (consolidatedData, reportsByClass, date, type = 'general', options = {}) => {
   switch (type) {
     case 'byClass':
-      generatePDFByClass(reportsByClass, date, options.selectedClasses);
+      generatePDFByClass(reportsByClass, date, options.selectedClasses, options);
       break;
     case 'monthly':
-      generateMonthlyPDF(consolidatedData, reportsByClass, options.month, options.year, options.selectedClasses);
+      generateMonthlyPDF(consolidatedData, reportsByClass, options.month, options.year, options.selectedClasses, options);
       break;
     case 'general':
     default:
-      generateGeneralPDF(consolidatedData, reportsByClass, date);
+      generateGeneralPDF(consolidatedData, reportsByClass, date, options);
       break;
   }
 };
@@ -27,241 +27,315 @@ export const generatePDF = (consolidatedData, reportsByClass, date, type = 'gene
 /**
  * Gera Relatório Geral Diário
  */
-const generateGeneralPDF = (consolidatedData, reportsByClass, date) => {
+const generateGeneralPDF = (consolidatedData, reportsByClass, date, options = {}) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   
   // Configurar fonte
   doc.setFont('helvetica');
+  const congregacao = options.congregacao || localStorage.getItem('ebd_congregacao_nome') || 'Congregação Mensageiros da Fé';
   
   // Cabeçalho
-  doc.setFontSize(18);
-  doc.text('EBD DIGITAL', 105, 20, { align: 'center' });
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(congregacao.toUpperCase(), 105, 18, { align: 'center' });
   
-  doc.setFontSize(14);
-  doc.text('Relatório Geral da EBD', 105, 28, { align: 'center' });
+  doc.setFontSize(12);
+  doc.text('Relatório Geral - EBD Digital', 105, 26, { align: 'center' });
   
   doc.setFontSize(10);
-  doc.text(`Data: ${formatDateToBrazilian(date)}`, 105, 34, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Data: ${formatDateToBrazilian(date)}`, 105, 33, { align: 'center' });
 
-  // Tabela 1: Resumo Consolidado
-  const summaryData = [
-    ['Matriculados', consolidatedData.matriculated || 0],
-    ['Presentes', consolidatedData.present || 0],
-    ['Ausentes', consolidatedData.absent || 0],
-    ['Visitantes', consolidatedData.visitors || 0],
-    ['Bíblias', consolidatedData.bibles || 0],
-    ['Revistas', consolidatedData.magazines || 0],
-    ['Ofertas (R$)', (consolidatedData.offers || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
-    ['Frequência (%)', `${consolidatedData.frequencyPercentage || 0}%`],
-  ];
+  // Preparar dados da tabela
+  const tableData = [];
+  
+  Object.values(reportsByClass).forEach(classData => {
+    const percentage = classData.matriculated > 0
+      ? Math.round((classData.present / classData.matriculated) * 100)
+      : 0;
+    
+    tableData.push([
+      classData.className,
+      classData.matriculated,
+      classData.absent,
+      classData.present,
+      classData.visitor,
+      `${percentage}%`,
+      classData.bibles,
+      classData.magazines,
+      `R$ ${classData.offering.toFixed(2)}`,
+    ]);
+  });
 
+  // Adicionar linha de totais
+  const totalPercentage = consolidatedData.matriculated > 0
+    ? Math.round((consolidatedData.present / consolidatedData.matriculated) * 100)
+    : 0;
+
+  tableData.push([
+    'TOTAL',
+    consolidatedData.matriculated,
+    consolidatedData.absent,
+    consolidatedData.present,
+    consolidatedData.visitor,
+    `${totalPercentage}%`,
+    consolidatedData.bibles,
+    consolidatedData.magazines,
+    `R$ ${consolidatedData.offering.toFixed(2)}`,
+  ]);
+
+  // Criar tabela com autoTable correto
   autoTable(doc, {
-    head: [['Indicador', 'Total']],
-    body: summaryData,
-    startY: 42,
+    head: [['Classe', 'Mat', 'Aus', 'Pres', 'Vis', '%', 'Bibl', 'Rev', 'Oferta']],
+    body: tableData,
+    startY: 45,
     theme: 'grid',
-    headStyles: {
+    headerStyles: {
       fillColor: [10, 126, 164],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
+      halign: 'center',
     },
     bodyStyles: {
       textColor: [0, 0, 0],
+      halign: 'center',
     },
     alternateRowStyles: {
       fillColor: [245, 245, 245],
     },
-    margin: { top: 42, right: 10, bottom: 10, left: 10 },
+    margin: { top: 45, right: 10, bottom: 10, left: 10 },
+    didDrawPage: (data) => {
+      // Rodapé
+      const pageCount = doc.getNumberOfPages();
+      const pageSize = doc.internal.pageSize;
+      const pageHeight = pageSize.getHeight();
+      
+      doc.setFontSize(9);
+      doc.text(
+        `Página ${data.pageNumber} de ${pageCount}`,
+        pageSize.getWidth() / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    },
   });
 
-  // Tabela 2: Detalhamento por Classe
-  const classRows = Object.entries(reportsByClass || {}).map(([className, report]) => {
-    const percentage = report.matriculated > 0 
-      ? Math.round((report.present / report.matriculated) * 100) 
-      : 0;
-    
-    return [
-      className,
-      report.matriculated || 0,
-      report.present || 0,
-      report.absent || 0,
-      report.visitors || 0,
-      report.bibles || 0,
-      report.magazines || 0,
-      `R$ ${(report.offers || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      `${percentage}%`
-    ];
-  });
-
-  if (classRows.length > 0) {
-    const lastY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 100;
-    
-    doc.setFontSize(12);
-    doc.text('Detalhamento por Classe', 10, lastY + 12);
-
-    autoTable(doc, {
-      head: [['Classe', 'Matr.', 'Pres.', 'Aus.', 'Vis.', 'Bíb.', 'Rev.', 'Oferta', 'Freq.']],
-      body: classRows,
-      startY: lastY + 16,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [10, 126, 164],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-      },
-      styles: {
-        fontSize: 8,
-      },
-      margin: { top: 10, right: 10, bottom: 10, left: 10 },
-      didDrawPage: (data) => {
-        // ✅ CORREÇÃO PONTUAL AQUI (Linha 106 original):
-        // doc.internal.getPages foi substituído por doc.getNumberOfPages()
-        const totalPages = doc.getNumberOfPages ? doc.getNumberOfPages() : 1;
-        doc.setFontSize(8);
-        doc.setTextColor(120);
-        doc.text(
-          `Página ${data.pageNumber} de ${totalPages}`,
-          105,
-          doc.internal.pageSize.getHeight() - 8,
-          { align: 'center' }
-        );
-      }
-    });
-  }
-
+  // Adicionar seção de totais
+  const finalY = doc.lastAutoTable?.finalY || 200;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAIS GERAIS', 14, finalY + 15);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Presença Total: ${consolidatedData.present}/${consolidatedData.matriculated} (${totalPercentage}%)`, 14, finalY + 25);
+  doc.text(`Oferta Total: R$ ${consolidatedData.offering.toFixed(2)}`, 14, finalY + 32);
+  
   // Download
-  doc.save(`relatorio-ebd-geral-${date}.pdf`);
+  doc.save(`relatorio-ebd-${date}.pdf`);
 };
 
 /**
- * Gera Relatório Mensal
+ * Gera Relatório Mensal Consolidado
+ * @param {Object} consolidatedData - Dados consolidados
+ * @param {Object} reportsByClass - Todos os relatórios por classe
+ * @param {number} month - Mês (1-12)
+ * @param {number} year - Ano
+ * @param {Array} selectedClasses - IDs das classes selecionadas (null = todas)
  */
-const generateMonthlyPDF = (consolidatedData, reportsByClass, month, year, selectedClasses = []) => {
+const generateMonthlyPDF = (consolidatedData, reportsByClass, month, year, selectedClasses = null, options = {}) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   
+  // Configurar fonte
   doc.setFont('helvetica');
-  doc.setFontSize(18);
-  doc.text('EBD DIGITAL', 105, 20, { align: 'center' });
+  const congregacao = options.congregacao || localStorage.getItem('ebd_congregacao_nome') || 'Congregação Mensageiros da Fé';
   
-  doc.setFontSize(14);
-  doc.text(`Relatório Mensal - ${month}/${year}`, 105, 28, { align: 'center' });
+  // Cabeçalho
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(congregacao.toUpperCase(), 105, 18, { align: 'center' });
+  
+  doc.setFontSize(12);
+  doc.text('Relatório Geral Mensal - EBD Digital', 105, 26, { align: 'center' });
+  
+  const monthName = getMonthName(month || new Date().getMonth() + 1);
+  const yearVal = year || new Date().getFullYear();
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${monthName} de ${yearVal}`, 105, 33, { align: 'center' });
+  
+  doc.setFontSize(9);
+  doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 105, 39, { align: 'center' });
 
-  const summaryData = [
-    ['Média de Matriculados', consolidatedData.matriculated || 0],
-    ['Média de Presentes', consolidatedData.present || 0],
-    ['Média de Ausentes', consolidatedData.absent || 0],
-    ['Total de Visitantes', consolidatedData.visitors || 0],
-    ['Total de Bíblias', consolidatedData.bibles || 0],
-    ['Total de Revistas', consolidatedData.magazines || 0],
-    ['Total de Ofertas (R$)', (consolidatedData.offers || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
-    ['Frequência Média (%)', `${consolidatedData.frequencyPercentage || 0}%`],
-  ];
+  // Informações da Igreja
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(congregacao, 14, 48);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Relatório Consolidado de Frequência e Ofertas', 14, 54);
 
+  // Preparar dados da tabela
+  const tableData = [];
+  let totalMatriculados = 0;
+  let totalPresentes = 0;
+  let totalAusentes = 0;
+  let totalVisitantes = 0;
+  let totalBiblias = 0;
+  let totalRevistas = 0;
+  let totalOfertas = 0;
+
+  Object.entries(reportsByClass).forEach(([classId, classData]) => {
+    // Filtrar classes selecionadas se aplicável
+    if (selectedClasses && !selectedClasses.includes(classId)) {
+      return;
+    }
+
+    const percentage = classData.matriculated > 0
+      ? Math.round((classData.present / classData.matriculated) * 100)
+      : 0;
+    
+    totalMatriculados += classData.matriculated;
+    totalPresentes += classData.present;
+    totalAusentes += classData.absent;
+    totalVisitantes += classData.visitor;
+    totalBiblias += classData.bibles;
+    totalRevistas += classData.magazines;
+    totalOfertas += classData.offering;
+    
+    tableData.push([
+      classData.className,
+      classData.matriculated,
+      classData.absent,
+      classData.present,
+      classData.visitor,
+      `${percentage}%`,
+      classData.bibles,
+      classData.magazines,
+      `R$ ${classData.offering.toFixed(2)}`,
+    ]);
+  });
+
+  // Adicionar linha de totais
+  const totalPercentage = totalMatriculados > 0
+    ? Math.round((totalPresentes / totalMatriculados) * 100)
+    : 0;
+
+  tableData.push([
+    'TOTAL',
+    totalMatriculados,
+    totalAusentes,
+    totalPresentes,
+    totalVisitantes,
+    `${totalPercentage}%`,
+    totalBiblias,
+    totalRevistas,
+    `R$ ${totalOfertas.toFixed(2)}`,
+  ]);
+
+  // Criar tabela
   autoTable(doc, {
-    head: [['Indicador Mensal', 'Valor']],
-    body: summaryData,
-    startY: 38,
+    head: [['Classe', 'Mat', 'Aus', 'Pres', 'Vis', '%', 'Bibl', 'Rev', 'Oferta']],
+    body: tableData,
+    startY: 65,
     theme: 'grid',
-    headStyles: {
+    headerStyles: {
       fillColor: [10, 126, 164],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 9,
     },
-    margin: { top: 38, right: 10, bottom: 10, left: 10 },
-    didDrawPage: (data) => {
-      // ✅ CORREÇÃO PONTUAL AQUI
-      const totalPages = doc.getNumberOfPages ? doc.getNumberOfPages() : 1;
-      doc.setFontSize(8);
-      doc.setTextColor(120);
-      doc.text(
-        `Página ${data.pageNumber} de ${totalPages}`,
-        105,
-        doc.internal.pageSize.getHeight() - 8,
-        { align: 'center' }
-      );
-    }
+    bodyStyles: {
+      textColor: [0, 0, 0],
+      halign: 'center',
+      fontSize: 9,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 245, 245],
+    },
+    margin: { top: 65, right: 10, bottom: 40, left: 10 },
   });
 
-  // Detalhamento por classe no mês
-  const classRows = Object.entries(reportsByClass || {})
-    .filter(([className]) => selectedClasses.length === 0 || selectedClasses.includes(className))
-    .map(([className, report]) => {
-      const percentage = report.matriculated > 0 
-        ? Math.round((report.present / report.matriculated) * 100) 
-        : 0;
-      
-      return [
-        className,
-        report.matriculated || 0,
-        report.present || 0,
-        report.absent || 0,
-        report.visitors || 0,
-        report.bibles || 0,
-        report.magazines || 0,
-        `R$ ${(report.offers || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `${percentage}%`
-      ];
-    });
+  // Adicionar seção de resumo
+  const finalY = doc.lastAutoTable?.finalY || 200;
+  
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RESUMO DO MÊS', 14, finalY + 15);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  const summaryData = [
+    `Total de Matriculados: ${totalMatriculados}`,
+    `Total de Presentes: ${totalPresentes}`,
+    `Total de Ausentes: ${totalAusentes}`,
+    `Total de Visitantes: ${totalVisitantes}`,
+    `Frequência Média: ${totalPercentage}%`,
+    `Total de Bíblias Distribuídas: ${totalBiblias}`,
+    `Total de Revistas Distribuídas: ${totalRevistas}`,
+    `Total de Ofertas: R$ ${totalOfertas.toFixed(2)}`,
+  ];
 
-  if (classRows.length > 0) {
-    const lastY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 100;
-    
-    doc.setFontSize(12);
-    doc.text('Médias por Classe no Mês', 10, lastY + 12);
+  let summaryY = finalY + 25;
+  summaryData.forEach(item => {
+    doc.text(item, 14, summaryY);
+    summaryY += 7;
+  });
 
-    autoTable(doc, {
-      head: [['Classe', 'Matr.', 'Pres.', 'Aus.', 'Vis.', 'Bíb.', 'Rev.', 'Oferta', 'Freq.']],
-      body: classRows,
-      startY: lastY + 16,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [10, 126, 164],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-      },
-      styles: {
-        fontSize: 8,
-      },
-      margin: { top: 10, right: 10, bottom: 10, left: 10 },
-    });
-  }
+  // Rodapé
+  const pageSize = doc.internal.pageSize;
+  const pageHeight = pageSize.getHeight();
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.text('Relatório gerado automaticamente pelo sistema EBD Digital', 14, pageHeight - 10);
 
-  doc.save(`relatorio-ebd-mensal-${month}-${year}.pdf`);
+  // Download
+  const fileName = `relatorio-mensal-ebd-${month}-${year}.pdf`;
+  doc.save(fileName);
 };
 
 /**
- * Gera Relatórios Individuais Por Classe
+ * Gera Relatórios por Classe
  */
-const generatePDFByClass = (reportsByClass, date, selectedClasses = []) => {
+const generatePDFByClass = (reportsByClass, date, selectedClasses = null, options = {}) => {
   const doc = new jsPDF('p', 'mm', 'a4');
-  
-  const classesToProcess = selectedClasses.length > 0 
-    ? Object.entries(reportsByClass || {}).filter(([name]) => selectedClasses.includes(name))
-    : Object.entries(reportsByClass || {});
+  let isFirstPage = true;
+  const congregacao = options.congregacao || localStorage.getItem('ebd_congregacao_nome') || 'Congregação Mensageiros da Fé';
 
-  classesToProcess.forEach(([className, classData], index) => {
-    if (index > 0) {
-      doc.addPage();
+  Object.entries(reportsByClass).forEach(([classId, classData], index) => {
+    // Filtrar classes selecionadas se aplicável
+    if (selectedClasses && !selectedClasses.includes(classId)) {
+      return;
     }
 
-    doc.setFont('helvetica');
-    doc.setFontSize(18);
-    doc.text('EBD DIGITAL', 105, 20, { align: 'center' });
+    if (!isFirstPage) {
+      doc.addPage();
+    }
+    isFirstPage = false;
+
+    // Cabeçalho
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(congregacao.toUpperCase(), 105, 18, { align: 'center' });
     
-    doc.setFontSize(14);
-    doc.text(`Relatório da Classe: ${className}`, 105, 28, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`Classe: ${classData.className}`, 105, 26, { align: 'center' });
     
     doc.setFontSize(10);
-    doc.text(`Data: ${formatDateToBrazilian(date)}`, 105, 34, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Data: ${formatDateToBrazilian(date)}`, 105, 33, { align: 'center' });
 
+    // Dados da classe
     const tableData = [
-      ['Matriculados', classData.matriculated || 0],
-      ['Presentes', classData.present || 0],
-      ['Ausentes', classData.absent || 0],
-      ['Visitantes', classData.visitors || 0],
-      ['Bíblias', classData.bibles || 0],
-      ['Revistas', classData.magazines || 0],
-      ['Ofertas (R$)', (classData.offers || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })],
+      ['Matriculados', classData.matriculated],
+      ['Presentes', classData.present],
+      ['Ausentes', classData.absent],
+      ['Visitantes', classData.visitor],
+      ['Bíblias', classData.bibles],
+      ['Revistas', classData.magazines],
+      ['Ofertas', `R$ ${classData.offering.toFixed(2)}`],
     ];
 
     const percentage = classData.matriculated > 0
@@ -270,33 +344,38 @@ const generatePDFByClass = (reportsByClass, date, selectedClasses = []) => {
     
     tableData.push(['Frequência (%)', `${percentage}%`]);
 
+    // Criar tabela com autoTable correto
     autoTable(doc, {
       head: [['Campo', 'Valor']],
       body: tableData,
-      startY: 42,
+      startY: 48,
       theme: 'grid',
-      headStyles: {
+      headerStyles: {
         fillColor: [10, 126, 164],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
       },
-      margin: { top: 42, right: 10, bottom: 10, left: 10 },
-      didDrawPage: (data) => {
-        // ✅ CORREÇÃO PONTUAL AQUI
-        const totalPages = doc.getNumberOfPages ? doc.getNumberOfPages() : 1;
-        doc.setFontSize(8);
-        doc.setTextColor(120);
-        doc.text(
-          `Página ${data.pageNumber} de ${totalPages}`,
-          105,
-          doc.internal.pageSize.getHeight() - 8,
-          { align: 'center' }
-        );
-      }
+      bodyStyles: {
+        textColor: [0, 0, 0],
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+      margin: { top: 48, right: 10, bottom: 10, left: 10 },
     });
+
+    // Rodapé
+    doc.setFontSize(9);
+    doc.text(
+      `Página ${index + 1}`,
+      105,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: 'center' }
+    );
   });
 
-  doc.save(`relatorio-ebd-por-classe-${date}.pdf`);
+  // Download
+  doc.save(`relatorio-ebd-por-classe-${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
 /**
@@ -306,4 +385,15 @@ const formatDateToBrazilian = (dateString) => {
   if (!dateString) return '';
   const [year, month, day] = dateString.split('-');
   return `${day}/${month}/${year}`;
+};
+
+/**
+ * Função auxiliar para obter nome do mês
+ */
+const getMonthName = (month) => {
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  return months[month - 1] || 'Mês Inválido';
 };

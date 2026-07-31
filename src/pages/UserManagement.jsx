@@ -14,6 +14,7 @@ export default function UserManagement({ onClose }) {
     role: 'secretary',
   });
   const [message, setMessage] = useState('');
+  const [userToDelete, setUserToDelete] = useState(null);
 
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -36,14 +37,19 @@ export default function UserManagement({ onClose }) {
     }
   };
 
-  const handleDeleteUser = async (username) => {
-    if (window.confirm(`Tem certeza que deseja deletar ${username}?`)) {
-      const result = await deleteUser(username);
-      if (result.success) {
-        setMessage(result.message);
-        // Atualizar lista de usuarios
-        setTimeout(() => setMessage(''), 3000);
-      }
+  const handleDeleteUser = (username) => {
+    setUserToDelete(username);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    const username = userToDelete;
+    setUserToDelete(null);
+    const result = await deleteUser(username);
+    if (result.success) {
+      setMessage(result.message);
+      setUsers(prev => prev.filter(u => u.username !== username));
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
@@ -159,6 +165,31 @@ export default function UserManagement({ onClose }) {
               </button>
             </div>
           </form>
+        )}
+        {/* Modal de confirmação de exclusão */}
+        {userToDelete && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Você tem certeza dessa ação?</h3>
+              <p className="text-gray-600 text-sm mb-6">
+                Deseja realmente excluir o usuário <strong>"{userToDelete}"</strong>?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDeleteUser}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm shadow-sm"
+                >
+                  Deletar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

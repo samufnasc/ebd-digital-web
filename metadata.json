@@ -1,0 +1,7 @@
+{
+  "name": "EBD Digital",
+  "description": "Sistema de registro de frequência e relatórios da Escola Bíblica Dominical (EBD)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+  

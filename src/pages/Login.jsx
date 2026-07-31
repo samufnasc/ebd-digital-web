@@ -31,9 +31,9 @@ export default function Login() {
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo-ebd.png" alt="EBD Digital" className="w-32 h-32 mx-auto mb-4" />
+          <img src="/logo-ebd.png" alt="EBD Digital" className="w-28 h-28 mx-auto mb-4 object-contain rounded-full shadow-md" />
           <h1 className="text-3xl font-bold text-gray-900">EBD Digital</h1>
-          <p className="text-gray-600 text-sm mt-2">Gestão de Escola Bíblia Dominical</p>
+          <p className="text-gray-600 text-sm mt-1">Gestão da Escola Bíblica Dominical</p>
         </div>
 
         {/* Form */}
