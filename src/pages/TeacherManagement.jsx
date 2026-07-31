@@ -70,7 +70,7 @@ export default function TeacherManagement({ onClose }) {
       alunoNome: prof.nomeCompleto,
       classe: prof.classe,
       username: prof.primeiroNome,
-      password: prof.password || DEFAULT_PASSWORD,
+      password: '',
     });
   };
 
@@ -92,9 +92,11 @@ export default function TeacherManagement({ onClose }) {
       setError('Informe o nome de acesso (primeiro nome).');
       return;
     }
-    if (!form.password || form.password.length < 4) {
-      setError('Informe uma senha com pelo menos 4 caracteres.');
-      return;
+    if (!editingKey || form.password) {
+      if (!form.password || form.password.length < 4) {
+        setError('Informe uma senha com pelo menos 4 caracteres.');
+        return;
+      }
     }
 
     const key = primeiroNomeVal.toLowerCase();
@@ -106,12 +108,15 @@ export default function TeacherManagement({ onClose }) {
 
     setSaving(true);
     try {
+      const password = editingKey && !form.password
+        ? (professores[editingKey]?.password || '')
+        : form.password;
       const prof = {
         username: key,
         nomeCompleto,
         primeiroNome: primeiroNomeVal,
         classe: form.classe,
-        password: form.password,
+        password,
         enabled: true,
       };
       const result = await professorFunctions.upsertProfessor(prof);
@@ -241,10 +246,11 @@ export default function TeacherManagement({ onClose }) {
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Senha</label>
               <input
-                type="text"
+                type="password"
                 value={form.password}
                 onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-600 outline-none text-sm"
+                placeholder={editingKey ? 'Deixe em branco para manter a atual' : DEFAULT_PASSWORD}
               />
             </div>
           </div>

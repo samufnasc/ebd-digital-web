@@ -10,7 +10,7 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -19,7 +19,8 @@ export default function Login() {
       return;
     }
 
-    if (login(username, password)) {
+    const ok = await login(username, password);
+    if (ok) {
       navigate('/dashboard');
     } else {
       setError('Usuário ou senha inválidos');

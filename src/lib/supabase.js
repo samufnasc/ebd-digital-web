@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { hashPassword, isHashed } from './passwords';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -144,15 +145,36 @@ export const professorFunctions = {
           enabled: !!p.enabled,
         };
       });
+      await this.migrarSenhasProfessores(map);
       this.limparProfessores(map);
       this.salvarProfessoresLocal(map);
       return { success: true, data: map };
     } catch (err) {
       console.warn('[supabase.js] getProfessores - fallback localStorage:', err.message);
       local = this.limparProfessores(local);
+      await this.migrarSenhasProfessores(local);
       this.salvarProfessoresLocal(local);
       return { success: true, data: local };
     }
+  },
+
+  // Converte senhas em texto puro para hash (SHA-256 com salt = username)
+  async migrarSenhasProfessores(map) {
+    for (const [key, p] of Object.entries(map || {})) {
+      if (p.password && !isHashed(p.password)) {
+        const hash = await hashPassword(p.password, key);
+        p.password = hash;
+        try {
+          await supabase
+            .from('professores')
+            .update({ password: hash })
+            .eq('username', key);
+        } catch (migErr) {
+          console.warn('[supabase.js] migrarSenhasProfessores - erro no Supabase:', migErr.message);
+        }
+      }
+    }
+    return map;
   },
 
   // Remove entradas inválidas/vazias (ex.: cadastro incompleto) do mapa de professores
@@ -167,12 +189,13 @@ export const professorFunctions = {
   },
 
   async upsertProfessor(prof) {
+    const password = await hashPassword(prof.password, prof.username);
     const local = this.getProfessoresLocal();
     local[prof.username] = {
       nomeCompleto: prof.nomeCompleto,
       primeiroNome: prof.primeiroNome,
       classe: prof.classe,
-      password: prof.password,
+      password,
       enabled: !!prof.enabled,
     };
     this.salvarProfessoresLocal(local);
@@ -185,7 +208,7 @@ export const professorFunctions = {
           nome_completo: prof.nomeCompleto,
           primeiro_nome: prof.primeiroNome,
           classe: prof.classe,
-          password: prof.password,
+          password,
           enabled: !!prof.enabled,
         });
       if (error) throw error;

@@ -1,12 +1,12 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { supabase, professorFunctions } from '../lib/supabase';
+import { hashPassword, verificarSenha, isHashed } from '../lib/passwords';
 
 const AuthContext = createContext();
 
-// Usuarios padrao (em producao, vir do banco de dados)
 const DEFAULT_USERS = {
-  admin: { password: 'REDACTED', role: 'admin' },
-  secretario: { password: 'REDACTED', role: 'secretary' },
+  admin: { password: 'bf6b5bdb74c79ece9fc0ad0ac9fb0359f9555d4f35a83b2e6ec69ae99e09603d', role: 'admin' },
+  secretario: { password: '04c0a9d381b47431f7bebe46ab139128084f773109ebe53bfcf12851122f8ae8', role: 'secretary' },
 };
 
 export const AuthProvider = ({ children }) => {
@@ -36,12 +36,31 @@ export const AuthProvider = ({ children }) => {
         if (data && data.length > 0) {
           // Converter dados do Supabase para formato local
           const usersMap = {};
+          const precisaMigrar = [];
           data.forEach(user => {
             usersMap[user.username] = {
               password: user.password,
               role: user.role
             };
+            if (user.password && !isHashed(user.password)) {
+              precisaMigrar.push(user);
+            }
           });
+
+          // Migracao: converter senhas em texto puro para hash (SHA-256 com salt = username)
+          for (const user of precisaMigrar) {
+            const hash = await hashPassword(user.password, user.username);
+            usersMap[user.username] = { ...usersMap[user.username], password: hash };
+            try {
+              await supabase
+                .from('usuarios')
+                .update({ password: hash })
+                .eq('username', user.username);
+            } catch (migErr) {
+              console.warn('AuthContext - erro ao migrar senha do usuario', user.username, migErr.message);
+            }
+          }
+
           setUsers(usersMap);
         } else {
           // Se tabela vazia, salvar usuarios padrao
@@ -74,11 +93,12 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (username, password) => {
-    if (users[username] && users[username].password === password) {
+  const login = async (username, password) => {
+    const usuario = users[username];
+    if (usuario && await verificarSenha(password, username, usuario.password)) {
       const userData = {
         username,
-        role: users[username].role,
+        role: usuario.role,
       };
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
@@ -88,7 +108,7 @@ export const AuthProvider = ({ children }) => {
     // Login de professor: primeiro nome (case-insensitive) + senha definida pelo admin
     const profKey = (username || '').trim().toLowerCase();
     const professor = professores[profKey];
-    if (professor && professor.enabled && professor.password === password) {
+    if (professor && professor.enabled && await verificarSenha(password, profKey, professor.password)) {
       const userData = {
         username: professor.primeiroNome || professor.nomeCompleto,
         role: 'teacher',
@@ -114,12 +134,14 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const hashedPassword = await hashPassword(password, username);
+
       // Salvar no Supabase
       const { error } = await supabase
         .from('usuarios')
         .insert([{
           username,
-          password,
+          password: hashedPassword,
           role
         }]);
 
@@ -128,13 +150,13 @@ export const AuthProvider = ({ children }) => {
       // Atualizar estado local
       setUsers(prev => ({
         ...prev,
-        [username]: { password, role }
+        [username]: { password: hashedPassword, role }
       }));
 
       // Salvar no localStorage como fallback
       localStorage.setItem('users', JSON.stringify({
         ...users,
-        [username]: { password, role }
+        [username]: { password: hashedPassword, role }
       }));
 
       return { success: true, message: 'Usuario criado com sucesso' };
@@ -150,10 +172,12 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const hashedPassword = await hashPassword(newPassword, username);
+
       // Atualizar no Supabase
       const { error } = await supabase
         .from('usuarios')
-        .update({ password: newPassword })
+        .update({ password: hashedPassword })
         .eq('username', username);
 
       if (error) throw error;
@@ -161,13 +185,13 @@ export const AuthProvider = ({ children }) => {
       // Atualizar estado local
       setUsers(prev => ({
         ...prev,
-        [username]: { ...prev[username], password: newPassword }
+        [username]: { ...prev[username], password: hashedPassword }
       }));
 
       // Salvar no localStorage como fallback
       localStorage.setItem('users', JSON.stringify({
         ...users,
-        [username]: { ...users[username], password: newPassword }
+        [username]: { ...users[username], password: hashedPassword }
       }));
 
       return { success: true, message: 'Senha atualizada com sucesso' };
