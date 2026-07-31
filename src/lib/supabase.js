@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function criarSupabaseMock() {
   const errMsg = 'Supabase nao configurado. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_KEY nas env vars da Vercel (Settings > Environment Variables).';
