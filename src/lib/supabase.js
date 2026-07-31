@@ -124,6 +124,8 @@ export const professorFunctions = {
   },
 
   async getProfessores() {
+    // Base sempre no localStorage (funciona mesmo sem tabela no banco)
+    const local = this.getProfessoresLocal();
     try {
       const { data, error } = await supabase
         .from('professores')
@@ -131,11 +133,8 @@ export const professorFunctions = {
 
       if (error) throw error;
 
-      if (!data || data.length === 0) {
-        return { success: true, data: this.getProfessoresLocal() };
-      }
-
-      const map = {};
+      // Mesclar: banco tem prioridade, mas mantém o que existir só no localStorage
+      const map = { ...local };
       (data || []).forEach(p => {
         map[p.username] = {
           nomeCompleto: p.nome_completo,
@@ -148,7 +147,7 @@ export const professorFunctions = {
       return { success: true, data: map };
     } catch (err) {
       console.warn('[supabase.js] getProfessores - fallback localStorage:', err.message);
-      return { success: true, data: this.getProfessoresLocal() };
+      return { success: true, data: local };
     }
   },
 
