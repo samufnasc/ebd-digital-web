@@ -1,12 +1,12 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+﻿import { createContext, useState, useEffect, useContext } from 'react';
 import { supabase, professorFunctions } from '../lib/supabase';
 
 const AuthContext = createContext();
 
-// Usuarios padrao (em producao, vir do banco de dados)
+// Usuários padrão locais (em produção, vem do Supabase)
 const DEFAULT_USERS = {
-  admin: { password: 'REDACTED', role: 'admin' },
-  secretario: { password: 'REDACTED', role: 'secretary' },
+  admin: { password: 'admin123', role: 'admin' },
+  secretario: { password: 'secr123', role: 'secretary' },
 };
 
 export const AuthProvider = ({ children }) => {
@@ -16,88 +16,143 @@ export const AuthProvider = ({ children }) => {
   const [professores, setProfessores] = useState({});
 
   const refreshProfessores = async () => {
-    const result = await professorFunctions.getProfessores();
-    if (result.success && result.data) {
-      setProfessores(result.data);
+    try {
+      const result = await professorFunctions.getProfessores();
+      if (result.success && result.data) {
+        setProfessores(result.data);
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar professores:', err);
     }
   };
 
-  // Carregar usuarios do Supabase ao iniciar
+  // Carregar usuários e professores do Supabase ao iniciar
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadAll = async () => {
       try {
-        // Tentar carregar usuarios do Supabase
         const { data, error } = await supabase
           .from('usuarios')
           .select('*');
         
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          // Converter dados do Supabase para formato local
+        if (!error && data && data.length > 0) {
           const usersMap = {};
-          data.forEach(user => {
-            usersMap[user.username] = {
-              password: user.password,
-              role: user.role
+          data.forEach(u => {
+            // Indexa tanto em minúsculas quanto no case original para evitar falhas no mobile
+            const keyLower = (u.username || '').trim().toLowerCase();
+            const original = (u.username || '').trim();
+            const payload = {
+              password: u.password,
+              role: u.role,
+              username: original,
             };
+            usersMap[keyLower] = payload;
+            usersMap[original] = payload;
           });
           setUsers(usersMap);
         } else {
-          // Se tabela vazia, salvar usuarios padrao
-          for (const [username, userData] of Object.entries(DEFAULT_USERS)) {
-            await supabase.from('usuarios').insert([{
-              username,
-              password: userData.password,
-              role: userData.role
-            }]);
-          }
+          const saved = localStorage.getItem('users');
+          if (saved) setUsers(JSON.parse(saved));
         }
       } catch (error) {
-        console.error('Erro ao carregar usuarios do Supabase:', error);
-        // Fallback para localStorage
+        console.warn('Erro ao carregar usuarios do Supabase:', error);
         const saved = localStorage.getItem('users');
-        if (saved) {
-          setUsers(JSON.parse(saved));
-        }
+        if (saved) setUsers(JSON.parse(saved));
       }
+
+      await refreshProfessores();
+      setLoading(false);
     };
 
-    // Restaurar usuario do localStorage
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
     }
 
-    loadUsers();
-    refreshProfessores();
-    setLoading(false);
+    loadAll();
   }, []);
 
-  const login = (username, password) => {
-    if (users[username] && users[username].password === password) {
+  // Login assíncrono e direto no Supabase para garantir funcionamento em celulares
+  const login = async (usernameInput, passwordInput) => {
+    const rawUser = (usernameInput || '').trim();
+    const rawPass = (passwordInput || '').trim();
+    if (!rawUser || !rawPass) return false;
+
+    const lowerKey = rawUser.toLowerCase();
+
+    // 1. Tentar login direto nos professores carregados
+    const prof = professores[lowerKey];
+    if (prof && prof.enabled && String(prof.password).trim() === rawPass) {
       const userData = {
-        username,
-        role: users[username].role,
+        username: prof.primeiroNome || prof.nomeCompleto || rawUser,
+        role: 'teacher',
+        classe: prof.classe,
+        nomeCompleto: prof.nomeCompleto,
       };
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
       return true;
     }
 
-    // Login de professor: primeiro nome (case-insensitive) + senha definida pelo admin
-    const profKey = (username || '').trim().toLowerCase();
-    const professor = professores[profKey];
-    if (professor && professor.enabled && professor.password === password) {
+    // 2. Tentar buscar o professor direto no Supabase (se o app acabou de abrir no celular)
+    try {
+      const { data: profDb } = await supabase
+        .from('professores')
+        .select('*')
+        .ilike('username', rawUser)
+        .eq('password', rawPass)
+        .eq('enabled', true)
+        .maybeSingle();
+
+      if (profDb) {
+        const userData = {
+          username: profDb.primeiro_nome || profDb.nome_completo || profDb.username,
+          role: 'teacher',
+          classe: profDb.classe,
+          nomeCompleto: profDb.nome_completo,
+        };
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return true;
+      }
+    } catch (err) {
+      console.warn('Busca direta professor erro:', err);
+    }
+
+    // 3. Tentar login de Administrador / Secretário (usuários do sistema)
+    if (users[lowerKey] && users[lowerKey].password === rawPass) {
       const userData = {
-        username: professor.primeiroNome || professor.nomeCompleto,
-        role: 'teacher',
-        classe: professor.classe,
-        nomeCompleto: professor.nomeCompleto,
+        username: users[lowerKey].username || rawUser,
+        role: users[lowerKey].role,
       };
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
       return true;
+    }
+
+    // 4. Fallback de consulta direta na tabela usuarios do Supabase
+    try {
+      const { data: userDb } = await supabase
+        .from('usuarios')
+        .select('*')
+        .ilike('username', rawUser)
+        .eq('password', rawPass)
+        .maybeSingle();
+
+      if (userDb) {
+        const userData = {
+          username: userDb.username,
+          role: userDb.role,
+        };
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return true;
+      }
+    } catch (err) {
+      console.warn('Busca direta usuario erro:', err);
     }
 
     return false;
@@ -109,100 +164,68 @@ export const AuthProvider = ({ children }) => {
   };
 
   const addUser = async (username, password, role) => {
-    if (users[username]) {
-      return { success: false, message: 'Usuario ja existe' };
-    }
-
+    const cleanUser = (username || '').trim();
     try {
-      // Salvar no Supabase
       const { error } = await supabase
         .from('usuarios')
-        .insert([{
-          username,
-          password,
-          role
-        }]);
+        .insert([{ username: cleanUser, password, role }]);
 
       if (error) throw error;
 
-      // Atualizar estado local
       setUsers(prev => ({
         ...prev,
-        [username]: { password, role }
+        [cleanUser.toLowerCase()]: { username: cleanUser, password, role },
+        [cleanUser]: { username: cleanUser, password, role },
       }));
 
-      // Salvar no localStorage como fallback
-      localStorage.setItem('users', JSON.stringify({
-        ...users,
-        [username]: { password, role }
-      }));
-
-      return { success: true, message: 'Usuario criado com sucesso' };
+      return { success: true, message: 'Usuário criado com sucesso' };
     } catch (error) {
-      console.error('Erro ao criar usuario:', error);
-      return { success: false, message: 'Erro ao criar usuario: ' + error.message };
+      console.error('Erro ao criar usuário:', error);
+      return { success: false, message: 'Erro ao criar usuário: ' + error.message };
     }
   };
 
   const updateUser = async (username, newPassword) => {
-    if (!users[username]) {
-      return { success: false, message: 'Usuario nao encontrado' };
-    }
-
+    const cleanUser = (username || '').trim();
     try {
-      // Atualizar no Supabase
       const { error } = await supabase
         .from('usuarios')
         .update({ password: newPassword })
-        .eq('username', username);
+        .ilike('username', cleanUser);
 
       if (error) throw error;
 
-      // Atualizar estado local
       setUsers(prev => ({
         ...prev,
-        [username]: { ...prev[username], password: newPassword }
-      }));
-
-      // Salvar no localStorage como fallback
-      localStorage.setItem('users', JSON.stringify({
-        ...users,
-        [username]: { ...users[username], password: newPassword }
+        [cleanUser.toLowerCase()]: { ...(prev[cleanUser.toLowerCase()] || {}), password: newPassword },
       }));
 
       return { success: true, message: 'Senha atualizada com sucesso' };
     } catch (error) {
-      console.error('Erro ao atualizar usuario:', error);
-      return { success: false, message: 'Erro ao atualizar usuario: ' + error.message };
+      console.error('Erro ao atualizar usuário:', error);
+      return { success: false, message: 'Erro ao atualizar usuário: ' + error.message };
     }
   };
 
   const deleteUser = async (username) => {
-    if (!users[username]) {
-      return { success: false, message: 'Usuario nao encontrado' };
-    }
-
+    const cleanUser = (username || '').trim();
     try {
-      // Deletar do Supabase
       const { error } = await supabase
         .from('usuarios')
         .delete()
-        .eq('username', username);
+        .ilike('username', cleanUser);
 
       if (error) throw error;
 
-      // Atualizar estado local
       const newUsers = { ...users };
-      delete newUsers[username];
+      delete newUsers[cleanUser.toLowerCase()];
+      delete newUsers[cleanUser];
       setUsers(newUsers);
 
-      // Salvar no localStorage como fallback
-      localStorage.setItem('users', JSON.stringify(newUsers));
-
-      return { success: true, message: 'Usuario deletado com sucesso' };
+      return { success: true, message: 'Usuário deletado com sucesso' };
     } catch (error) {
-      console.error('Erro ao deletar usuario:', error);
-      return { success: false, message: 'Erro ao deletar usuario: ' + error.message };
+      console.error('Erro ao deletar usuário:', error);
+      return { success: false, message: 'Erro ao deletar usuário: ' + error.message };
     }
   };
 

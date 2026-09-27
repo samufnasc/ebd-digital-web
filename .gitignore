@@ -1,4 +1,4 @@
-# Logs
+﻿# Logs
 logs
 *.log
 npm-debug.log*
@@ -15,6 +15,7 @@ dist
 dist-ssr
 *.local
 CONVERSATION_CONTEXT.md
+nossos_relatorios
 
 # Editor directories and files
 .vscode/*
