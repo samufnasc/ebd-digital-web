@@ -1,10 +1,19 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { studentFunctions, professorFunctions } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
 const DEFAULT_PASSWORD = '1234567';
 
+const isFeminino = (nome = '') => {
+  const n = (nome || '').trim().toLowerCase();
+  const primeiro = n.split(/\s+/)[0] || '';
+  const femininos = ['karoline', 'caroline', 'carol', 'helena', 'maria', 'vanessa', 'ana', 'patricia', 'juliana', 'aline', 'camila', 'leticia', 'beatriz', 'larissa', 'debora', 'raquel', 'ruth', 'ester', 'marta', 'noemi', 'sara', 'priscila', 'claudia', 'renata', 'simone', 'fernanda', 'amanda', 'mariana', 'gabriela', 'daniela', 'luciana', 'adriana', 'monica', 'bruna'];
+  if (femininos.indexOf(primeiro) !== -1) return true;
+  if (primeiro.endsWith('a') && ['lucas', 'elias', 'jonas', 'matias', 'josua'].indexOf(primeiro) === -1) return true;
+  if (primeiro.endsWith('ine') || primeiro.endsWith('elle') || primeiro.endsWith('elly')) return true;
+  return false;
+};
 const primeiroNome = (nome) => {
   const parts = (nome || '').trim().split(/\s+/);
   return parts.length > 0 ? parts[0] : '';
@@ -362,3 +371,4 @@ export default function TeacherManagement({ onClose }) {
     </div>
   );
 }
+

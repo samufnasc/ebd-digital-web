@@ -10,6 +10,15 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
+const isFeminino = (nome = '') => {
+  const n = (nome || '').trim().toLowerCase();
+  const primeiro = n.split(/\s+/)[0] || '';
+  const femininos = ['karoline', 'caroline', 'carol', 'helena', 'maria', 'vanessa', 'ana', 'patricia', 'juliana', 'aline', 'camila', 'leticia', 'beatriz', 'larissa', 'debora', 'raquel', 'ruth', 'ester', 'marta', 'noemi', 'sara', 'priscila', 'claudia', 'renata', 'simone', 'fernanda', 'amanda', 'mariana', 'gabriela', 'daniela', 'luciana', 'adriana', 'monica', 'bruna'];
+  if (femininos.indexOf(primeiro) !== -1) return true;
+  if (primeiro.endsWith('a') && ['lucas', 'elias', 'jonas', 'matias', 'josua'].indexOf(primeiro) === -1) return true;
+  if (primeiro.endsWith('ine') || primeiro.endsWith('elle') || primeiro.endsWith('elly')) return true;
+  return false;
+};
 const formatDataBr = (iso) => {
   if (!iso) return '';
   const parts = iso.substring(0, 10).split('-');
@@ -328,7 +337,7 @@ export default function TeacherDashboard() {
                 Portal do Professor
               </span>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-                Olá, Professor {user?.username}! 👋
+                {isFeminino(user?.nomeCompleto || user?.username) ? 'Bem-vinda, Professora ' : 'Bem-vindo, Professor '}{user?.username}! 👋
               </h2>
               <p className="text-indigo-100 text-xs sm:text-sm mt-1 max-w-md">
                 Registre a chamada da classe <strong>{classe}</strong> e acompanhe o crescimento da sua turma.
@@ -724,3 +733,4 @@ export default function TeacherDashboard() {
     </div>
   );
 }
+
