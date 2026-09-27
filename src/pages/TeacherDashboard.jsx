@@ -64,6 +64,8 @@ export default function TeacherDashboard() {
 
         const resChamada = await chamadaFunctions.getChamada(classe, dataAula);
         const registrosGravados = resChamada.success ? resChamada.data : [];
+        const resRel = await reportFunctions.getReportsByDate(dataAula);
+        const relData = (resRel.data || []).find(r => (r.classe || "").trim() === classe);
 
         const mapaGravado = {};
         registrosGravados.forEach(reg => {
@@ -90,6 +92,8 @@ export default function TeacherDashboard() {
         if (isMounted) {
           setAlunos(listaAlunos);
           setChamadaState(novoEstado);
+          setVisitantes(relData ? (relData.visitantes || 0) : 0);
+          setOferta(relData ? (relData.ofertas || 0) : 0);
         }
       } catch (err) {
         console.error('Erro ao carregar chamada:', err);
@@ -324,7 +328,7 @@ export default function TeacherDashboard() {
                 Portal do Professor
               </span>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-                Olá, {user?.username}! 👋
+                Olá, Professor {user?.username}! 👋
               </h2>
               <p className="text-indigo-100 text-xs sm:text-sm mt-1 max-w-md">
                 Registre a chamada da classe <strong>{classe}</strong> e acompanhe o crescimento da sua turma.

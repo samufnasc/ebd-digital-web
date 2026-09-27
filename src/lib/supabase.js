@@ -244,6 +244,21 @@ export const chamadaFunctions = {
     }
   },
 
+  async deleteChamadaByDate(date, classe = null) {
+    try {
+      let query = supabase.from('chamadas_alunos').delete().eq('data_aula', date);
+      if (classe) {
+        query = query.eq('classe', classe);
+      }
+      const { error } = await query;
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('[supabase.js] deleteChamadaByDate erro:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   async getChamadasPeriodo(classe, mes, ano) {
     try {
       const padM = String(mes).padStart(2, '0');
@@ -456,12 +471,17 @@ export const reportFunctions = {
 
   deleteReportsByDate: async (date) => {
     try {
-      const { error } = await supabase
+      // 1. Deletar os relatórios consolidados do dia
+      const { error: errorRel } = await supabase
         .from('relatorios_ebd')
         .delete()
         .eq('data_aula', date);
       
-      if (error) throw error;
+      if (errorRel) throw errorRel;
+
+      // 2. Deletar também os registros individuais de chamadas do dia (para sincronizar com o professor)
+      await chamadaFunctions.deleteChamadaByDate(date);
+
       return { success: true };
     } catch (error) {
       console.error('Erro ao deletar relatórios:', error);
