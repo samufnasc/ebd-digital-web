@@ -29,12 +29,21 @@ const formatDataBr = (iso) => {
   return iso;
 };
 
-const getUpcomingOrCurrentSunday = (d = new Date()) => {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = day === 0 ? 0 : 7 - day;
-  date.setDate(date.getDate() + diff);
-  return date.toISOString().substring(0, 10);
+const getTodayIso = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDayNameFromDateString = (dateStr) => {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const date = new Date(y, m - 1, d);
+  const days = ['Domingo', 'Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado'];
+  return days[date.getDay()] || '';
 };
 
 export default function TeacherDashboard() {
@@ -45,7 +54,7 @@ export default function TeacherDashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const [dataAula, setDataAula] = useState(getUpcomingOrCurrentSunday());
+  const [dataAula, setDataAula] = useState(getTodayIso());
   const [alunos, setAlunos] = useState([]);
   const [chamadaState, setChamadaState] = useState({});
   const [loadingAlunos, setLoadingAlunos] = useState(true);
@@ -378,7 +387,7 @@ export default function TeacherDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-1">
-                    Data da Aula (Domingo)
+                    Data da Aula ({getDayNameFromDateString(dataAula)})
                   </label>
                   <input
                     type="date"
